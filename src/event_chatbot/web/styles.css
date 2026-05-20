@@ -282,7 +282,7 @@ h1 {
 .message {
   display: flex;
   gap: 8px;
-  align-items: flex-start;
+  align-items: center;
 }
 
 .message.user {
@@ -299,7 +299,6 @@ h1 {
   flex: 0 0 34px;
   width: 34px;
   height: 34px;
-  margin-top: 1px;
   place-items: center;
   border-radius: 12px;
   background: linear-gradient(135deg, var(--pink-700), var(--fuchsia-500));
@@ -329,8 +328,8 @@ h1 {
 
 .bot-face::after {
   position: absolute;
-  top: 4px;
-  left: 4px;
+  top: 5px;
+  left: 4.5px;
   width: 3px;
   height: 3px;
   content: "";
