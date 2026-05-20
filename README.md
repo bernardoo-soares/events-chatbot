@@ -57,6 +57,12 @@ INGEST_DEFAULT_DAYS=30
 uvicorn event_chatbot.main:app --reload
 ```
 
+Web app:
+
+```text
+http://127.0.0.1:8000
+```
+
 Health check:
 
 ```bash

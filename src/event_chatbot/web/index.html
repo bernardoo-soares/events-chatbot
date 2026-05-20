@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Events ChatBot</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,700;9..144,800&family=Manrope:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+    <div class="noise"></div>
+
+    <main class="page-shell">
+      <section class="hero-panel" aria-label="Event discovery introduction">
+        <div class="brand-pill">
+          <span class="brand-dot"></span>
+          Grounded event discovery
+        </div>
+        <h1>Find your next unforgettable night out.</h1>
+        <p class="hero-copy">
+          A conversational events guide powered by real local data from Lisbon and Madrid.
+          Ask naturally. Get grounded recommendations.
+        </p>
+        <div class="hero-badges" aria-label="Product strengths">
+          <span>Live local data</span>
+          <span>SQLite grounded</span>
+          <span>Lisbon + Madrid</span>
+        </div>
+        <div class="hero-card">
+          <p class="hero-card-kicker">Tonight's mood</p>
+          <p class="hero-card-title">Pink skies, city lights, better plans.</p>
+        </div>
+      </section>
+
+      <section class="chat-card" aria-label="Conversational event search">
+        <header class="chat-header">
+          <div>
+            <p class="eyebrow">Events ChatBot</p>
+            <h2>Ask for plans</h2>
+          </div>
+          <button class="refresh-button" type="button" id="refreshSession" title="Start a new chat">
+            <span aria-hidden="true">↻</span>
+            New session
+          </button>
+        </header>
+
+        <div class="quick-prompts" aria-label="Example prompts">
+          <button type="button" data-prompt="Show me exhibitions in Lisbon">Lisbon exhibitions</button>
+          <button type="button" data-prompt="What can I do in Madrid under 25 euros?">
+            Madrid under 25 euros
+          </button>
+          <button type="button" data-prompt="I want something relaxed in Lisbon this weekend">
+            Relaxed weekend
+          </button>
+        </div>
+
+        <div class="messages" id="messages" aria-live="polite">
+          <article class="message assistant">
+            <div class="avatar">AI</div>
+            <div class="bubble">
+              <p>
+                Tell me what kind of event you want. Try "music in Lisbon soon" or
+                "culture in Madrid this week".
+              </p>
+            </div>
+          </article>
+        </div>
+
+        <section class="results-panel" aria-label="Top event matches">
+          <div class="results-heading">
+            <p class="eyebrow">Top matches</p>
+            <span id="resultCount">Waiting for your first search</span>
+          </div>
+          <div class="event-grid" id="eventGrid">
+            <div class="empty-state">
+              Your best matches will appear here as polished event cards.
+            </div>
+          </div>
+        </section>
+
+        <form class="composer" id="chatForm">
+          <label class="sr-only" for="messageInput">Message</label>
+          <input
+            id="messageInput"
+            type="text"
+            autocomplete="off"
+            placeholder="Ask for concerts, exhibitions, cheap plans..."
+          />
+          <button type="submit" id="sendButton">Send</button>
+        </form>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

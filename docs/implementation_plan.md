@@ -418,6 +418,46 @@ Add AgendaLX as a first-class Lisbon event provider while preserving the existin
 
 Confirm AgendaLX behaves as a clean connector and does not add provider-specific logic to repositories or retrieval.
 
+## Sprint 9: Web Chat UI
+
+### Goal
+
+Add a compelling browser-based conversational interface served by the existing FastAPI app.
+
+### Scope
+
+- Add a static web app under `src/event_chatbot/web/`.
+- Serve `/` from FastAPI.
+- Mount static assets under `/static`.
+- Build a pink gradient launch page with glassmorphism chat UI.
+- Wire the frontend to `POST /chat`.
+- Persist browser session id in `localStorage`.
+- Add a refresh/new-session button.
+- Show a classical three-dot loading state with the text `I'm thinking`.
+- Render assistant messages and top three structured event cards.
+- Add quick prompt chips.
+- Keep the frontend dependency-free and avoid a Node build step.
+
+### Deliverables
+
+- `http://127.0.0.1:8000` opens the web UI.
+- Chat requests hit the existing backend.
+- Event cards render from `results`, not from model-generated text.
+- User can restart with a fresh session.
+
+### Checkpoint
+
+- Unit test for `/`.
+- Unit test for `/static/app.js` and `/static/styles.css`.
+- Manual browser smoke test.
+- `python -m pytest -q`
+- `python -m ruff check .`
+- `python -m compileall src tests`
+
+### Review
+
+Confirm the UI gives a strong demo impression without changing backend contracts.
+
 ## 2. Senior Engineering Guardrails
 
 Implementation should follow these rules throughout:
