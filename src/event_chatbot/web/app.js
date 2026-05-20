@@ -66,7 +66,7 @@ async function submitMessage(message) {
     });
 
     const payload = await response.json();
-    loadingEl.remove();
+    removeThinkingMessage(loadingEl);
 
     if (!response.ok) {
       renderAssistantMessage("I couldn't reach the event brain. Try again in a moment.");
@@ -77,7 +77,7 @@ async function submitMessage(message) {
     renderAssistantMessage(payload.assistant_message || "I found some options for you.");
     renderEventCards(payload.results || []);
   } catch (error) {
-    loadingEl.remove();
+    removeThinkingMessage(loadingEl);
     renderAssistantMessage("I couldn't reach the event brain. Try again in a moment.");
     renderEventCards([]);
   } finally {
@@ -109,19 +109,32 @@ function renderAssistantMessage(message) {
 function renderThinkingMessage() {
   const article = document.createElement("article");
   article.className = "message assistant";
-  const phrase = thinkingPhrases[Math.floor(Math.random() * thinkingPhrases.length)];
+  let phraseIndex = 0;
   article.innerHTML = `
     <div class="avatar" aria-hidden="true"><span class="bot-face"></span></div>
     <div class="bubble">
       <span class="thinking">
-        ${escapeHtml(phrase)}
+        <span class="thinking-text">${escapeHtml(thinkingPhrases[phraseIndex])}</span>
         <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>
       </span>
     </div>
   `;
+  const phraseEl = article.querySelector(".thinking-text");
+  const timerId = window.setInterval(() => {
+    phraseIndex = (phraseIndex + 1) % thinkingPhrases.length;
+    phraseEl.textContent = thinkingPhrases[phraseIndex];
+  }, 2000);
+  article.cleanup = () => window.clearInterval(timerId);
   messagesEl.appendChild(article);
   scrollMessages();
   return article;
+}
+
+function removeThinkingMessage(article) {
+  if (typeof article.cleanup === "function") {
+    article.cleanup();
+  }
+  article.remove();
 }
 
 function renderEventCards(results) {
@@ -184,13 +197,13 @@ function formatMessage(message) {
     .replace(/\*\*(.*?)\*\*/g, "$1")
     .replace(/^\s*#{1,6}\s+/gm, "")
     .replace(/^\s*[-*]\s+/gm, "• ")
-    .replace(/\s+-\s+/g, " · ");
+    .replace(/\s+-\s+/g, " - ");
 
   return cleaned
     .split(/\n{2,}/)
     .map((block) => {
       const paragraph = document.createElement("p");
-      paragraph.textContent = block.replace(/\n/g, " ").trim();
+      paragraph.textContent = block.trim();
       return paragraph;
     })
     .filter((paragraph) => paragraph.textContent);

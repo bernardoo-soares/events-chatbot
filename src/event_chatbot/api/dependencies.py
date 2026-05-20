@@ -8,8 +8,9 @@ from event_chatbot.core.config import Settings, get_settings
 from event_chatbot.core.time import utc_now
 from event_chatbot.db.connection import connect
 from event_chatbot.db.migrations import initialize_database
-from event_chatbot.providers.agno_llm import AgnoIntentExtractor, AgnoResponseRenderer
+from event_chatbot.providers.agno_llm import AgnoIntentExtractor
 from event_chatbot.providers.llm import IntentExtractor, ResponseRenderer
+from event_chatbot.providers.template_response import TemplateResponseRenderer
 from event_chatbot.repositories.chat_sessions import ChatSessionRepository
 from event_chatbot.repositories.events import EventRepository
 from event_chatbot.retrieval.service import RetrievalService
@@ -48,7 +49,7 @@ def get_intent_extractor(settings: SettingsDep) -> IntentExtractor:
 def get_response_renderer(settings: SettingsDep) -> ResponseRenderer:
     if not settings.openai_api_key:
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY is required for chat")
-    return AgnoResponseRenderer(model_id=settings.openai_model, api_key=settings.openai_api_key)
+    return TemplateResponseRenderer()
 
 
 def get_chat_service(
