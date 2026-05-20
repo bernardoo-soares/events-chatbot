@@ -8,6 +8,12 @@ const inputEl = document.querySelector("#messageInput");
 const sendButtonEl = document.querySelector("#sendButton");
 const refreshButtonEl = document.querySelector("#refreshSession");
 const promptButtons = document.querySelectorAll("[data-prompt]");
+const thinkingPhrases = [
+  "I'm thinking",
+  "Finding the best fits",
+  "Checking the city lights",
+  "Reading the event map",
+];
 
 let sessionId = getOrCreateSessionId();
 let isLoading = false;
@@ -92,7 +98,7 @@ function renderAssistantMessage(message) {
   const article = document.createElement("article");
   article.className = "message assistant";
   article.innerHTML = `
-    <div class="avatar">AI</div>
+    <div class="avatar" aria-hidden="true"><span class="bot-face"></span></div>
     <div class="bubble"></div>
   `;
   article.querySelector(".bubble").append(...formatMessage(message));
@@ -103,11 +109,12 @@ function renderAssistantMessage(message) {
 function renderThinkingMessage() {
   const article = document.createElement("article");
   article.className = "message assistant";
+  const phrase = thinkingPhrases[Math.floor(Math.random() * thinkingPhrases.length)];
   article.innerHTML = `
-    <div class="avatar">AI</div>
+    <div class="avatar" aria-hidden="true"><span class="bot-face"></span></div>
     <div class="bubble">
       <span class="thinking">
-        I'm thinking
+        ${escapeHtml(phrase)}
         <span class="dots" aria-hidden="true"><span></span><span></span><span></span></span>
       </span>
     </div>

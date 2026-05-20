@@ -8,9 +8,9 @@
   --cream: #fff7ed;
   --ink: #241322;
   --muted: #7c5f72;
-  --glass: rgba(255, 255, 255, 0.72);
-  --glass-strong: rgba(255, 255, 255, 0.9);
-  --border: rgba(255, 255, 255, 0.46);
+  --glass: rgba(255, 242, 247, 0.78);
+  --glass-strong: rgba(255, 250, 252, 0.94);
+  --border: rgba(72, 20, 47, 0.1);
   --shadow: 0 32px 90px rgba(89, 14, 58, 0.34);
 }
 
@@ -28,9 +28,9 @@ body {
   color: var(--ink);
   font-family: "Manrope", "Segoe UI", sans-serif;
   background:
-    radial-gradient(circle at 14% 16%, rgba(255, 164, 197, 0.88), transparent 28%),
-    radial-gradient(circle at 86% 12%, rgba(72, 20, 47, 0.18), transparent 30%),
-    linear-gradient(135deg, #ffa4c5 0%, #ffd0dc 48%, #fff1ee 100%);
+    radial-gradient(circle at 14% 16%, rgba(255, 127, 176, 0.72), transparent 28%),
+    radial-gradient(circle at 86% 12%, rgba(72, 20, 47, 0.24), transparent 30%),
+    linear-gradient(135deg, #f99abc 0%, #f8ccd7 48%, #f5e7e8 100%);
   overflow-x: hidden;
 }
 
@@ -276,7 +276,7 @@ h1 {
   overflow-y: auto;
   border: 1px solid rgba(255, 255, 255, 0.46);
   border-radius: 26px;
-  background: rgba(255, 255, 255, 0.46);
+  background: rgba(255, 240, 246, 0.64);
 }
 
 .message {
@@ -294,6 +294,7 @@ h1 {
 }
 
 .avatar {
+  position: relative;
   display: grid;
   flex: 0 0 34px;
   width: 34px;
@@ -304,6 +305,37 @@ h1 {
   color: white;
   font-size: 0.72rem;
   font-weight: 900;
+}
+
+.bot-face {
+  position: relative;
+  width: 19px;
+  height: 15px;
+  border: 2px solid white;
+  border-radius: 8px;
+}
+
+.bot-face::before {
+  position: absolute;
+  top: -7px;
+  left: 7px;
+  width: 4px;
+  height: 6px;
+  content: "";
+  border-radius: 999px;
+  background: white;
+}
+
+.bot-face::after {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 3px;
+  height: 3px;
+  content: "";
+  border-radius: 999px;
+  background: white;
+  box-shadow: 7px 0 0 white;
 }
 
 .bubble {
@@ -367,7 +399,7 @@ h1 {
   padding: 16px;
   border: 1px solid rgba(255, 255, 255, 0.46);
   border-radius: 26px;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 240, 246, 0.68);
 }
 
 .results-heading {
@@ -395,7 +427,7 @@ h1 {
   min-height: 170px;
   border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 250, 252, 0.9);
   overflow: hidden;
 }
 
