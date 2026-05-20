@@ -375,6 +375,49 @@ Prepare the challenge submission.
 
 Final review before submission.
 
+## Sprint 8: AgendaLX Lisbon Ingestion
+
+### Goal
+
+Add AgendaLX as a first-class Lisbon event provider while preserving the existing ingestion abstraction.
+
+### Scope
+
+- Add `AgendaLXProvider` implementing `EventSourceProvider`.
+- Fetch `https://www.agendalx.pt/wp-json/agendalx/v1/events` with `per_page=100`.
+- Paginate with `page=1`, `page=2`, `page=3`, etc.
+- Stop when the response is empty, shorter than `per_page`, or the requested size is reached.
+- Normalize AgendaLX payloads into `SourceEvent`.
+- Use `source="agendalx"` and `source_event_id=str(id)`.
+- Use fixed Lisbon metadata: `city="Lisbon"` and `timezone="Europe/Lisbon"`.
+- Drop events that ended before today's Lisbon-local midnight.
+- Keep long-running events when `LastDate` is today or later.
+- Add `source` to `IngestionRequest` with default `"ticketmaster"`.
+- Add a source-aware ingestion factory.
+- Update `/ingest` to select the provider from the request body.
+
+### Deliverables
+
+- AgendaLX events can be ingested into the same `raw_events`, `events`, and `events_fts` tables.
+- No DB schema change is required.
+- Ticketmaster ingestion remains the default path.
+- Lisbon DB coverage improves through AgendaLX.
+
+### Checkpoint
+
+- Unit tests for AgendaLX pagination.
+- Unit tests for AgendaLX normalization.
+- Unit tests for past-event filtering.
+- Integration checks for the existing ingestion service.
+- Manual smoke test with real AgendaLX API:
+  - `source="agendalx"`
+  - `city="Lisbon"`
+  - `size=300`
+
+### Review
+
+Confirm AgendaLX behaves as a clean connector and does not add provider-specific logic to repositories or retrieval.
+
 ## 2. Senior Engineering Guardrails
 
 Implementation should follow these rules throughout:

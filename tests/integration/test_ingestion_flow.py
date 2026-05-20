@@ -8,6 +8,8 @@ from event_chatbot.types.ingestion import IngestionRequest, SourceEvent, SourceP
 
 
 class FakeProvider(EventSourceProvider):
+    source = "fake"
+
     def fetch_events(self, request: IngestionRequest) -> list[SourcePayload]:
         return [
             SourcePayload(
@@ -51,4 +53,3 @@ def test_ingestion_service_stores_raw_and_normalized_events(tmp_path) -> None:
     assert summary.errors == 0
     assert conn.execute("SELECT COUNT(*) FROM raw_events").fetchone()[0] == 1
     assert conn.execute("SELECT COUNT(*) FROM events").fetchone()[0] == 1
-

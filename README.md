@@ -1,13 +1,13 @@
 # Event Chatbot
 
-Grounded local event-discovery chatbot API built with FastAPI, SQLite FTS5, Ticketmaster ingestion, and Agno-based LLM orchestration.
+Grounded local event-discovery chatbot API built with FastAPI, SQLite FTS5, Ticketmaster/AgendaLX ingestion, and Agno-based LLM orchestration.
 
 The LLM does not invent recommendations. Event recommendations come from the local SQLite database.
 
 ## Architecture
 
 ```text
-Ticketmaster Discovery API
+Ticketmaster Discovery API / AgendaLX API
 -> ETL ingestion
 -> SQLite events database + FTS5 index
 -> deterministic retrieval and ranking
@@ -26,6 +26,7 @@ Core docs:
 
 - Python 3.11+
 - Ticketmaster API key for ingestion
+- AgendaLX ingestion does not require an API key
 - OpenAI API key for chat through Agno
 
 ## Setup
@@ -43,6 +44,8 @@ OPENAI_API_KEY=your-openai-key
 OPENAI_MODEL=gpt-4o-mini
 TICKETMASTER_API_KEY=your-ticketmaster-key
 TICKETMASTER_BASE_URL=https://app.ticketmaster.com/discovery/v2
+AGENDALX_BASE_URL=https://www.agendalx.pt/wp-json/agendalx/v1
+AGENDALX_PER_PAGE=100
 DEFAULT_CITY=Lisbon
 DEFAULT_TIMEZONE=Europe/Lisbon
 INGEST_DEFAULT_DAYS=30
@@ -65,7 +68,15 @@ curl http://127.0.0.1:8000/health
 ```bash
 curl -X POST http://127.0.0.1:8000/ingest ^
   -H "Content-Type: application/json" ^
-  -d "{\"city\":\"Lisbon\",\"size\":50}"
+  -d "{\"source\":\"ticketmaster\",\"city\":\"Lisbon\",\"size\":50}"
+```
+
+AgendaLX Lisbon ingestion:
+
+```bash
+curl -X POST http://127.0.0.1:8000/ingest ^
+  -H "Content-Type: application/json" ^
+  -d "{\"source\":\"agendalx\",\"city\":\"Lisbon\",\"size\":300}"
 ```
 
 ## Deterministic Search
@@ -90,13 +101,12 @@ python -m pytest -q
 python -m ruff check .
 ```
 
-Current automated tests use fake providers and do not require real OpenAI or Ticketmaster credentials.
+Current automated tests use fake providers and do not require real OpenAI, Ticketmaster, or AgendaLX network calls.
 
 ## Important Boundaries
 
-- No live Ticketmaster calls during chat.
+- No live provider calls during chat.
 - No LLM-generated SQL.
 - No LLM-created event recommendations.
 - Retrieval state is stored explicitly in `chat_sessions`.
 - `events` and `events_fts` are the source of grounded recommendations.
-

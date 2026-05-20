@@ -21,6 +21,7 @@ free-form user message
 
 ```text
 Ticketmaster Discovery API
+AgendaLX API
         |
         v
 ETL ingestion service
@@ -52,7 +53,7 @@ The LLM layer is intentionally narrow. Agno is used to communicate with an exter
 FastAPI exposes the public HTTP API:
 
 - `POST /chat`: receive a session id and user message, then return a grounded assistant response.
-- `POST /ingest`: manually trigger event ingestion from Ticketmaster.
+- `POST /ingest`: manually trigger event ingestion from a configured source.
 - `GET /events/search`: deterministic debug endpoint for checking retrieval without the chatbot.
 - `GET /health`: health check.
 
@@ -78,6 +79,7 @@ Agno still needs an external model provider behind it, such as OpenAI or Vertex/
 ```text
 OPENAI_API_KEY=...
 TICKETMASTER_API_KEY=...
+AGENDALX_BASE_URL=...
 ```
 
 ### Ticketmaster Discovery API
@@ -87,6 +89,26 @@ Ticketmaster is the first event-data source.
 The API is used only by ingestion jobs, not by the chat request path. This keeps chat answers grounded in the local database and avoids mixing live external API behavior with retrieval behavior.
 
 Future sources such as Eventbrite, PredictHQ, Bandsintown, or OpenAgenda can be added later because the DB schema stores `source` and `source_event_id`.
+
+### AgendaLX API
+
+AgendaLX is the Lisbon cultural-event source.
+
+It is used only by ingestion jobs, not by chat. The provider calls the public AgendaLX API with pagination:
+
+```text
+https://www.agendalx.pt/wp-json/agendalx/v1/events?per_page=100&page=1
+```
+
+AgendaLX events are normalized into the same `SourceEvent` contract as Ticketmaster. The provider stores:
+
+- `source="agendalx"`
+- `source_event_id=str(id)`
+- `city="Lisbon"`
+- `timezone="Europe/Lisbon"`
+- `status="scheduled"`
+
+AgendaLX ingestion keeps only current or future events. Long-running events are kept if `LastDate` is today or later.
 
 ### SQLite
 
@@ -112,7 +134,8 @@ or
 python -m app.etl.ingest_events
         |
         v
-Ticketmaster Discovery API
+selected event provider
+Ticketmaster Discovery API or AgendaLX API
         |
         v
 store raw payload in raw_events
@@ -131,7 +154,7 @@ For the MVP, ingestion should be synchronous enough to return a clear summary:
 
 ```json
 {
-  "source": "ticketmaster",
+  "source": "agendalx",
   "city": "Lisbon",
   "fetched": 120,
   "inserted": 80,
@@ -514,6 +537,7 @@ For `raw_events`, ingestion should:
 `status` stores event availability/state from the source, for example:
 
 - `onsale`
+- `scheduled`
 - `offsale`
 - `cancelled`
 - `postponed`

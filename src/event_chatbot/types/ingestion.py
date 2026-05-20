@@ -1,10 +1,13 @@
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+IngestionSource = Literal["ticketmaster", "agendalx"]
+
 
 class IngestionRequest(BaseModel):
+    source: IngestionSource = "ticketmaster"
     city: str
     date_from: date | None = None
     date_to: date | None = None
@@ -50,4 +53,3 @@ class SourceEvent(BaseModel):
     image_url: str | None = None
     latitude: float | None = None
     longitude: float | None = None
-

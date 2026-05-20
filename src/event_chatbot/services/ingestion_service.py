@@ -49,10 +49,9 @@ class IngestionService:
             event_summary = self.events.upsert_many(normalized_events, fetched_at)
 
         return IngestionSummary(
-            source=payloads[0].source if payloads else "ticketmaster",
+            source=self.provider.source,
             fetched=len(payloads),
             inserted=event_summary.inserted,
             updated=event_summary.updated,
             errors=errors,
         )
-

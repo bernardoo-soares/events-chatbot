@@ -51,6 +51,18 @@ def test_hard_category_only_moves_category_to_hard_filter() -> None:
     assert query.hard_filters.hard_category_filters == ["sports"]
 
 
+def test_default_status_filter_includes_scheduled_events() -> None:
+    query = normalize_query(
+        QuerySpec(city="Lisbon"),
+        previous=None,
+        now=datetime(2026, 5, 19, 12, 0, tzinfo=UTC),
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+    )
+
+    assert query.hard_filters.statuses == ["onsale", "scheduled", "unknown"]
+
+
 def test_category_aliases_are_soft_boosts_not_fts_requirements() -> None:
     query = normalize_query(
         QuerySpec(categories=["art", "theater", "food", "festival"]),

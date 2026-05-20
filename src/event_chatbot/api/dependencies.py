@@ -10,15 +10,10 @@ from event_chatbot.db.connection import connect
 from event_chatbot.db.migrations import initialize_database
 from event_chatbot.providers.agno_llm import AgnoIntentExtractor, AgnoResponseRenderer
 from event_chatbot.providers.llm import IntentExtractor, ResponseRenderer
-from event_chatbot.providers.ticketmaster import (
-    TicketmasterProvider,
-    normalize_ticketmaster_event,
-)
 from event_chatbot.repositories.chat_sessions import ChatSessionRepository
 from event_chatbot.repositories.events import EventRepository
 from event_chatbot.retrieval.service import RetrievalService
 from event_chatbot.services.chat_service import ChatService
-from event_chatbot.services.ingestion_service import IngestionService
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
@@ -30,27 +25,6 @@ def get_db_connection(settings: SettingsDep) -> Iterator[sqlite3.Connection]:
         yield conn
     finally:
         conn.close()
-
-
-def get_ingestion_service(
-    settings: SettingsDep,
-    conn: Annotated[sqlite3.Connection, Depends(get_db_connection)],
-) -> IngestionService:
-    if not settings.ticketmaster_api_key:
-        raise HTTPException(
-            status_code=503,
-            detail="TICKETMASTER_API_KEY is required for ingestion",
-        )
-    provider = TicketmasterProvider(
-        api_key=settings.ticketmaster_api_key,
-        base_url=settings.ticketmaster_base_url,
-    )
-    return IngestionService(
-        conn=conn,
-        provider=provider,
-        normalizer=normalize_ticketmaster_event,
-        clock=utc_now,
-    )
 
 
 def get_retrieval_service(

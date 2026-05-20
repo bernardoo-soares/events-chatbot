@@ -17,6 +17,8 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("TICKETMASTER_API_KEY", "TICKET_MASTER_CONSUMER_KEY"),
     )
     ticketmaster_base_url: str = "https://app.ticketmaster.com/discovery/v2"
+    agendalx_base_url: str = "https://www.agendalx.pt/wp-json/agendalx/v1"
+    agendalx_per_page: int = 100
     default_city: str = "Lisbon"
     default_timezone: str = "Europe/Lisbon"
     ingest_default_days: int = 30

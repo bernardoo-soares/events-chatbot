@@ -30,7 +30,7 @@ class HardFilters(BaseModel):
     date_from: datetime | None = None
     date_to: datetime | None = None
     max_price: float | None = None
-    statuses: list[str] = Field(default_factory=lambda: ["onsale", "unknown"])
+    statuses: list[str] = Field(default_factory=lambda: ["onsale", "scheduled", "unknown"])
     hard_category_filters: list[str] = Field(default_factory=list)
 
 
@@ -62,4 +62,3 @@ class RankedEvent(BaseModel):
     temporal_score: float
     price_score: float
     tag_overlap_score: float
-
