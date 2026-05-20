@@ -1,0 +1,65 @@
+from typing import Any
+
+from agno.agent import Agent
+from agno.models.openai import OpenAIResponses
+from pydantic import BaseModel
+
+from event_chatbot.types.chat import SessionState
+from event_chatbot.types.query import NormalizedQuery, QuerySpec, RankedEvent
+
+INTENT_INSTRUCTIONS = [
+    "Extract event-search intent from the user message.",
+    "Return only fields in the QuerySpec schema.",
+    "Do not write SQL.",
+    "Do not invent event data.",
+    "Use categories as suggestions, not final hard filters.",
+    "Set hard_category_only=true only when the user explicitly says only/just/no other categories.",
+    "Set needs_clarification=true only when retrieval cannot proceed safely.",
+]
+
+RESPONSE_INSTRUCTIONS = [
+    "Answer using only the supplied event rows.",
+    "Do not add venues, prices, dates, URLs, or event facts that are not present.",
+    "If results are empty, say no matching events were found and suggest changing filters.",
+    "Keep the answer concise and useful.",
+]
+
+
+class AgnoIntentExtractor:
+    def __init__(self, model_id: str, api_key: str):
+        self.agent = Agent(
+            model=OpenAIResponses(id=model_id, api_key=api_key),
+            output_schema=QuerySpec,
+            instructions=INTENT_INSTRUCTIONS,
+        )
+
+    def extract_intent(self, message: str, state: SessionState | None) -> QuerySpec:
+        payload: dict[str, Any] = {"message": message}
+        if state is not None and state.current_query is not None:
+            payload["current_query"] = state.current_query.model_dump(mode="json")
+        response = self.agent.run(payload)
+        content = getattr(response, "content", response)
+        if isinstance(content, QuerySpec):
+            return content
+        if isinstance(content, BaseModel):
+            return QuerySpec.model_validate(content.model_dump())
+        return QuerySpec.model_validate(content)
+
+
+class AgnoResponseRenderer:
+    def __init__(self, model_id: str, api_key: str):
+        self.agent = Agent(
+            model=OpenAIResponses(id=model_id, api_key=api_key),
+            instructions=RESPONSE_INSTRUCTIONS,
+        )
+
+    def render_response(self, query: NormalizedQuery, events: list[RankedEvent]) -> str:
+        response = self.agent.run(
+            {
+                "query": query.model_dump(mode="json"),
+                "events": [event.model_dump(mode="json") for event in events],
+            }
+        )
+        content = getattr(response, "content", response)
+        return str(content)
+
