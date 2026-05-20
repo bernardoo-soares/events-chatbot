@@ -3,6 +3,12 @@ from datetime import datetime
 from event_chatbot.types.query import NormalizedQuery, RankedEvent
 
 EMPTY_RESPONSE = "No matching events were found. Try changing the city, date, category, or budget."
+CLOSING_LINES = [
+    "Enjoy the plans.",
+    "Hope one of these fits your mood.",
+    "Have a great time out there.",
+    "Pick one and make it a good one.",
+]
 
 
 class TemplateResponseRenderer:
@@ -29,6 +35,7 @@ class TemplateResponseRenderer:
                 ]
             )
 
+        lines.append(_closing_line(events))
         return "\n".join(lines).strip()
 
 
@@ -44,3 +51,8 @@ def _format_date_range(start_at: datetime, end_at: datetime | None) -> str:
 
 def _format_date(value: datetime) -> str:
     return f"{value:%b} {value.day}, {value:%Y}"
+
+
+def _closing_line(events: list[RankedEvent]) -> str:
+    seed = sum(event.event.id for event in events)
+    return CLOSING_LINES[seed % len(CLOSING_LINES)]

@@ -39,6 +39,7 @@ def test_template_response_renderer_formats_events_without_raw_iso_dates() -> No
     assert "Date: May 23, 2026 - May 30, 2026" in result
     assert "Venue: 23a Galeria de Arte" in result
     assert "T00:00:00" not in result
+    assert result.endswith("Hope one of these fits your mood.")
 
 
 def test_template_response_renderer_handles_empty_results() -> None:
