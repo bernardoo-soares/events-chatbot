@@ -18,6 +18,16 @@ ALLOWED_CATEGORIES = {
     "other",
 }
 
+CATEGORY_ALIASES = {
+    "art": "arts",
+    "arts-culture": "arts",
+    "culture": "arts",
+    "theater": "theatre",
+    "food": "food_drink",
+    "drink": "food_drink",
+    "food-drink": "food_drink",
+}
+
 VIBE_EXPANSIONS = {
     "chill": ["chill", "casual", "relaxed"],
     "romantic": ["romantic", "date night", "intimate"],
@@ -111,12 +121,23 @@ def _normalize_dates(
         )
         if spec.time_of_day:
             return _apply_time_of_day(date_from.date(), spec.time_of_day, timezone)
-        return date_from, date_to
+        return _prevent_past_only_window(date_from, date_to, now, default_days)
 
     if spec.time_of_day:
         return _apply_time_of_day(now.date(), spec.time_of_day, timezone)
 
     return now, now + timedelta(days=default_days)
+
+
+def _prevent_past_only_window(
+    date_from: datetime,
+    date_to: datetime,
+    now: datetime,
+    default_days: int,
+) -> tuple[datetime, datetime]:
+    if date_to < now:
+        return now, now + timedelta(days=default_days)
+    return date_from, date_to
 
 
 def _apply_time_of_day(
@@ -140,12 +161,15 @@ def _normalize_categories(spec: QuerySpec) -> tuple[list[str], list[str], list[s
     unknown_terms: list[str] = []
     for category in spec.categories:
         normalized = _slug(category).replace("-", "_")
+        normalized = CATEGORY_ALIASES.get(normalized, normalized)
         if normalized in ALLOWED_CATEGORIES:
             boosts.append(normalized)
         else:
             unknown_terms.append(category)
     boosts = _dedupe_terms(boosts)
     hard_filters = boosts if spec.hard_category_only else []
+    if not spec.hard_category_only:
+        unknown_terms = []
     return boosts, hard_filters, unknown_terms
 
 

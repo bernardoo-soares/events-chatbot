@@ -1,3 +1,4 @@
+import json
 from typing import Any
 
 from agno.agent import Agent
@@ -13,6 +14,11 @@ INTENT_INSTRUCTIONS = [
     "Do not write SQL.",
     "Do not invent event data.",
     "Use categories as suggestions, not final hard filters.",
+    "Leave categories empty for broad requests like 'events' or 'things to do'.",
+    "Only set categories when the user names a specific event type.",
+    "Extract explicit city names from the message when present.",
+    "Do not convert relative date phrases to guessed calendar dates.",
+    "For broad upcoming ranges like 'next 30 days', leave date fields empty.",
     "Set hard_category_only=true only when the user explicitly says only/just/no other categories.",
     "Set needs_clarification=true only when retrieval cannot proceed safely.",
 ]
@@ -34,10 +40,10 @@ class AgnoIntentExtractor:
         )
 
     def extract_intent(self, message: str, state: SessionState | None) -> QuerySpec:
-        payload: dict[str, Any] = {"message": message}
+        payload: dict[str, Any] = {"user_message": message}
         if state is not None and state.current_query is not None:
             payload["current_query"] = state.current_query.model_dump(mode="json")
-        response = self.agent.run(payload)
+        response = self.agent.run(json.dumps(payload, ensure_ascii=True))
         content = getattr(response, "content", response)
         if isinstance(content, QuerySpec):
             return content
@@ -54,12 +60,12 @@ class AgnoResponseRenderer:
         )
 
     def render_response(self, query: NormalizedQuery, events: list[RankedEvent]) -> str:
+        payload = {
+            "query": query.model_dump(mode="json"),
+            "events": [event.model_dump(mode="json") for event in events],
+        }
         response = self.agent.run(
-            {
-                "query": query.model_dump(mode="json"),
-                "events": [event.model_dump(mode="json") for event in events],
-            }
+            json.dumps(payload, ensure_ascii=True),
         )
         content = getattr(response, "content", response)
         return str(content)
-
