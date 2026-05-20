@@ -6,6 +6,8 @@ from event_chatbot.repositories.chat_sessions import ChatSessionRepository
 from event_chatbot.retrieval.service import RetrievalService
 from event_chatbot.types.chat import ChatRequest, ChatResponse
 
+MAX_CHAT_RESULTS = 5
+
 
 class ChatService:
     def __init__(
@@ -45,6 +47,7 @@ class ChatService:
                 )
 
             normalized = self.retrieval.normalize(spec, previous=state)
+            normalized.limit = min(normalized.limit, MAX_CHAT_RESULTS)
             results = self.retrieval.search(normalized)
             state.current_query = spec
             state.last_result_ids = [result.event.id for result in results]
@@ -62,4 +65,3 @@ class ChatService:
                 applied_filters=normalized.model_dump(mode="json"),
                 results=results,
             )
-

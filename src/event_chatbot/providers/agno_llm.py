@@ -27,7 +27,11 @@ RESPONSE_INSTRUCTIONS = [
     "Answer using only the supplied event rows.",
     "Do not add venues, prices, dates, URLs, or event facts that are not present.",
     "If results are empty, say no matching events were found and suggest changing filters.",
-    "Keep the answer concise and useful.",
+    "Recommend at most 5 events.",
+    "Keep the answer concise, friendly, and easy to scan.",
+    "Use plain text, not Markdown tables.",
+    "Avoid markdown emphasis markers like **bold**.",
+    "For each event, include only title, date, venue, and one short reason when available.",
 ]
 
 

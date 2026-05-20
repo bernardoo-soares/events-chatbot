@@ -30,6 +30,11 @@ class FakeResponseRenderer(ResponseRenderer):
         return f"Found {len(events)} event: {events[0].event.title}"
 
 
+class BroadLisbonIntentExtractor(IntentExtractor):
+    def extract_intent(self, message: str, state: SessionState | None) -> QuerySpec:
+        return QuerySpec(city="Lisbon")
+
+
 def test_chat_endpoint_returns_grounded_results_and_persists_state(tmp_path) -> None:
     conn = connect(str(tmp_path / "chat_api.sqlite"))
     initialize_database(conn)
@@ -87,3 +92,52 @@ def test_chat_endpoint_returns_grounded_results_and_persists_state(tmp_path) -> 
     assert state.last_result_ids == [1]
     assert conn.execute("SELECT COUNT(*) FROM chat_messages").fetchone()[0] == 2
 
+
+def test_chat_endpoint_caps_results_to_five(tmp_path) -> None:
+    conn = connect(str(tmp_path / "chat_limit.sqlite"))
+    initialize_database(conn)
+    now = datetime(2026, 5, 19, 12, 0, tzinfo=UTC)
+    event_repo = EventRepository(conn)
+    event_repo.upsert_many(
+        [
+            SourceEvent(
+                source="agendalx",
+                source_event_id=f"event-{index}",
+                title=f"Lisbon Event {index}",
+                city="Lisbon",
+                category="arts",
+                start_at=now + timedelta(days=index),
+                status="scheduled",
+            )
+            for index in range(1, 9)
+        ],
+        now,
+    )
+    conn.commit()
+
+    retrieval = RetrievalService(
+        event_repository=event_repo,
+        clock=lambda: now,
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+    )
+    service = ChatService(
+        conn=conn,
+        sessions=ChatSessionRepository(conn),
+        intent_extractor=BroadLisbonIntentExtractor(),
+        response_renderer=FakeResponseRenderer(),
+        retrieval=retrieval,
+    )
+    app = create_app()
+    app.dependency_overrides[get_chat_service] = lambda: service
+    client = TestClient(app)
+
+    response = client.post(
+        "/chat",
+        json={"session_id": "session-limit", "message": "show me jazz tonight"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["results"]) == 5
+    assert body["applied_filters"]["limit"] == 5

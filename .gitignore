@@ -3,6 +3,7 @@
 __pycache__/
 *.py[cod]
 *.sqlite
+*.sqlite-journal
 *.sqlite-shm
 *.sqlite-wal
 .pytest_cache/
@@ -11,4 +12,3 @@ __pycache__/
 dist/
 build/
 *.egg-info/
-

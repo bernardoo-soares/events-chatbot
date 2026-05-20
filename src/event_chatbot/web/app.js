@@ -173,7 +173,13 @@ function renderLink(url) {
 }
 
 function formatMessage(message) {
-  return String(message)
+  const cleaned = String(message)
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/^\s*#{1,6}\s+/gm, "")
+    .replace(/^\s*[-*]\s+/gm, "• ")
+    .replace(/\s+-\s+/g, " · ");
+
+  return cleaned
     .split(/\n{2,}/)
     .map((block) => {
       const paragraph = document.createElement("p");
