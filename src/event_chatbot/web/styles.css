@@ -1,10 +1,10 @@
 :root {
-  --rose-950: #351126;
-  --rose-900: #57143b;
-  --pink-700: #d42a78;
-  --pink-500: #ff5aa5;
-  --fuchsia-500: #d946ef;
-  --coral-400: #ff8a7a;
+  --rose-950: #2b0b1e;
+  --rose-900: #48142f;
+  --pink-700: #d92d75;
+  --pink-500: #ffa4c5;
+  --fuchsia-500: #f05ba5;
+  --coral-400: #ffd0dc;
   --cream: #fff7ed;
   --ink: #241322;
   --muted: #7c5f72;
@@ -28,9 +28,9 @@ body {
   color: var(--ink);
   font-family: "Manrope", "Segoe UI", sans-serif;
   background:
-    radial-gradient(circle at 12% 18%, rgba(255, 227, 120, 0.78), transparent 28%),
-    radial-gradient(circle at 88% 10%, rgba(217, 70, 239, 0.78), transparent 32%),
-    linear-gradient(135deg, #ff4f9a 0%, #ff7c87 34%, #f6bed1 68%, #ffe7c6 100%);
+    radial-gradient(circle at 14% 16%, rgba(255, 164, 197, 0.88), transparent 28%),
+    radial-gradient(circle at 86% 12%, rgba(72, 20, 47, 0.18), transparent 30%),
+    linear-gradient(135deg, #ffa4c5 0%, #ffd0dc 48%, #fff1ee 100%);
   overflow-x: hidden;
 }
 
@@ -69,13 +69,13 @@ button {
 .ambient-one {
   top: -110px;
   left: -80px;
-  background: #ff2d8d;
+  background: #ffa4c5;
 }
 
 .ambient-two {
   right: -120px;
   bottom: -120px;
-  background: #ffb86b;
+  background: #48142f;
   animation-delay: -4s;
 }
 
@@ -155,8 +155,9 @@ h1 {
   color: var(--rose-950);
   font-family: "Fraunces", Georgia, serif;
   font-size: clamp(3rem, 7vw, 6.9rem);
-  line-height: 0.88;
-  letter-spacing: -0.07em;
+  line-height: 0.96;
+  letter-spacing: -0.045em;
+  word-spacing: 0.08em;
 }
 
 .hero-copy {

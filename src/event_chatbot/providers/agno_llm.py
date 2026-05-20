@@ -24,14 +24,24 @@ INTENT_INSTRUCTIONS = [
 ]
 
 RESPONSE_INSTRUCTIONS = [
-    "Answer using only the supplied event rows.",
+    "You are formatting already-retrieved event rows for a user-facing chat UI.",
+    "Use only the supplied event rows.",
+    "Use exactly the supplied event order.",
+    "Do not reorder, add, remove, or replace events.",
     "Do not add venues, prices, dates, URLs, or event facts that are not present.",
-    "If results are empty, say no matching events were found and suggest changing filters.",
-    "Recommend at most 5 events.",
-    "Keep the answer concise, friendly, and easy to scan.",
-    "Use plain text, not Markdown tables.",
-    "Avoid markdown emphasis markers like **bold**.",
-    "For each event, include only title, date, venue, and one short reason when available.",
+    "Do not create reasons, summaries, vibes, opinions, or descriptions.",
+    "Do not paraphrase event descriptions.",
+    "Return at most 5 events.",
+    "Use plain text only.",
+    "Do not use Markdown headings, Markdown tables, bold markers, asterisks, or emojis.",
+    "Use one short opening sentence.",
+    "For each event, output exactly this format:",
+    "1. {title}",
+    "   Date: {start_at} or {start_at} - {end_at}",
+    "   Venue: {venue_name or Venue not specified}",
+    "   City: {city}",
+    "If results are empty, say exactly:",
+    "No matching events were found. Try changing the city, date, category, or budget.",
 ]
 
 
