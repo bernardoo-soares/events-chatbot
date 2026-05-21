@@ -1,6 +1,9 @@
 from datetime import datetime
 
+from event_chatbot.core.logging import get_logger
 from event_chatbot.types.query import NormalizedQuery
+
+logger = get_logger(__name__)
 
 
 def build_candidate_query(query: NormalizedQuery) -> tuple[str, list[object]]:
@@ -47,9 +50,18 @@ def build_candidate_query(query: NormalizedQuery) -> tuple[str, list[object]]:
         {order}
         LIMIT ?
     """
+    logger.debug(
+        "Built candidate query used_fts=%s city=%s hard_categories=%s "
+        "statuses=%s max_price=%s params_count=%s",
+        query.used_fts,
+        filters.city,
+        filters.hard_category_filters,
+        filters.statuses,
+        filters.max_price,
+        len(params),
+    )
     return sql, params
 
 
 def _datetime_to_text(value: datetime) -> str:
     return value.isoformat()
-

@@ -2,8 +2,11 @@ import json
 import sqlite3
 from datetime import datetime
 
+from event_chatbot.core.logging import get_logger
 from event_chatbot.types.chat import MessageRole, SessionState
 from event_chatbot.types.query import QuerySpec
+
+logger = get_logger(__name__)
 
 
 class ChatSessionRepository:
@@ -11,11 +14,13 @@ class ChatSessionRepository:
         self.conn = conn
 
     def get_or_create(self, session_id: str, now: datetime) -> SessionState:
+        logger.debug("Loading chat session session_id=%s", session_id)
         row = self.conn.execute(
             "SELECT * FROM chat_sessions WHERE session_id = ?",
             (session_id,),
         ).fetchone()
         if row is None:
+            logger.info("Creating chat session session_id=%s", session_id)
             now_text = now.isoformat()
             self.conn.execute(
                 """
@@ -31,9 +36,16 @@ class ChatSessionRepository:
                 (session_id, now_text, now_text, None, "[]"),
             )
             return SessionState(session_id=session_id, created_at=now, updated_at=now)
+        logger.debug("Loaded existing chat session session_id=%s", session_id)
         return _session_state_from_row(row)
 
     def save_state(self, session_id: str, state: SessionState, now: datetime) -> None:
+        logger.debug(
+            "Saving chat session state session_id=%s last_result_count=%s has_current_query=%s",
+            session_id,
+            len(state.last_result_ids),
+            state.current_query is not None,
+        )
         current_query_json = (
             state.current_query.model_dump_json() if state.current_query is not None else None
         )
@@ -58,6 +70,12 @@ class ChatSessionRepository:
         message_text: str,
         now: datetime,
     ) -> None:
+        logger.debug(
+            "Appending chat message session_id=%s role=%s message_chars=%s",
+            session_id,
+            role,
+            len(message_text),
+        )
         self.conn.execute(
             """
             INSERT INTO chat_messages (session_id, role, message_text, created_at)

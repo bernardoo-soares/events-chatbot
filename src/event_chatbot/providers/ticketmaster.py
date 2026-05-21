@@ -4,7 +4,10 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+from event_chatbot.core.logging import get_logger
 from event_chatbot.types.ingestion import IngestionRequest, SourceEvent, SourcePayload
+
+logger = get_logger(__name__)
 
 
 class TicketmasterProviderError(RuntimeError):
@@ -25,6 +28,13 @@ class TicketmasterProvider:
         self.client = client or httpx.Client(timeout=20.0)
 
     def fetch_events(self, request: IngestionRequest) -> list[SourcePayload]:
+        logger.info(
+            "Fetching Ticketmaster events city=%s requested_size=%s date_from=%s date_to=%s",
+            request.city,
+            request.size,
+            request.date_from,
+            request.date_to,
+        )
         payloads: list[SourcePayload] = []
         page = 0
         page_size = min(request.size, 200)
@@ -43,13 +53,32 @@ class TicketmasterProvider:
                 params["endDateTime"] = f"{request.date_to.isoformat()}T23:59:59Z"
 
             response = self.client.get(f"{self.base_url}/events.json", params=params)
+            logger.debug(
+                "Ticketmaster response received city=%s page=%s size=%s status=%s",
+                request.city,
+                page,
+                params["size"],
+                response.status_code,
+            )
             if response.status_code >= 400:
+                logger.error(
+                    "Ticketmaster request failed city=%s page=%s status=%s body_preview=%s",
+                    request.city,
+                    page,
+                    response.status_code,
+                    response.text[:300],
+                )
                 raise TicketmasterProviderError(
                     f"Ticketmaster request failed with status {response.status_code}"
                 )
             data = response.json()
             events = data.get("_embedded", {}).get("events", [])
             if not events:
+                logger.info(
+                    "Ticketmaster pagination stopped city=%s page=%s reason=no_events",
+                    request.city,
+                    page,
+                )
                 break
 
             for event in events:
@@ -69,8 +98,19 @@ class TicketmasterProvider:
             page += 1
             total_pages = data.get("page", {}).get("totalPages")
             if total_pages is not None and page >= int(total_pages):
+                logger.info(
+                    "Ticketmaster pagination stopped city=%s page=%s total_pages=%s",
+                    request.city,
+                    page,
+                    total_pages,
+                )
                 break
 
+        logger.info(
+            "Ticketmaster fetch completed city=%s payload_count=%s",
+            request.city,
+            len(payloads),
+        )
         return payloads
 
 
@@ -145,4 +185,3 @@ def _float_or_none(value: object) -> float | None:
     if value is None:
         return None
     return float(value)
-

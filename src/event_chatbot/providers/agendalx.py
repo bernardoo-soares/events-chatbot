@@ -6,10 +6,12 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+from event_chatbot.core.logging import get_logger
 from event_chatbot.types.ingestion import IngestionRequest, SourceEvent, SourcePayload
 
 LISBON_TIMEZONE = "Europe/Lisbon"
 LISBON_CITY = "Lisbon"
+logger = get_logger(__name__)
 
 
 class AgendaLXProviderError(RuntimeError):
@@ -34,6 +36,12 @@ class AgendaLXProvider:
         )
 
     def fetch_events(self, request: IngestionRequest) -> list[SourcePayload]:
+        logger.info(
+            "Fetching AgendaLX events requested_size=%s per_page=%s base_url=%s",
+            request.size,
+            self.per_page,
+            self.base_url,
+        )
         payloads: list[SourcePayload] = []
         page = 1
 
@@ -43,19 +51,34 @@ class AgendaLXProvider:
                 f"{self.base_url}/events",
                 params={"per_page": page_size, "page": page},
             )
+            logger.debug(
+                "AgendaLX response received page=%s page_size=%s status=%s",
+                page,
+                page_size,
+                response.status_code,
+            )
             if response.status_code >= 400:
+                logger.error(
+                    "AgendaLX request failed page=%s status=%s body_preview=%s",
+                    page,
+                    response.status_code,
+                    response.text[:300],
+                )
                 raise AgendaLXProviderError(
                     f"AgendaLX request failed with status {response.status_code}"
                 )
 
             events = response.json()
             if not isinstance(events, list) or not events:
+                logger.info("AgendaLX pagination stopped page=%s reason=empty_response", page)
                 break
 
+            skipped_past = 0
             for event in events:
                 if not isinstance(event, dict) or event.get("id") is None:
                     continue
                 if not _is_current_or_future_payload(event):
+                    skipped_past += 1
                     continue
                 payloads.append(
                     SourcePayload(
@@ -68,9 +91,24 @@ class AgendaLXProvider:
                     break
 
             if len(events) < page_size:
+                logger.info(
+                    "AgendaLX pagination stopped page=%s "
+                    "reason=short_page events=%s skipped_past=%s",
+                    page,
+                    len(events),
+                    skipped_past,
+                )
                 break
+            logger.debug(
+                "AgendaLX page processed page=%s returned=%s accepted_total=%s skipped_past=%s",
+                page,
+                len(events),
+                len(payloads),
+                skipped_past,
+            )
             page += 1
 
+        logger.info("AgendaLX fetch completed payload_count=%s", len(payloads))
         return payloads
 
 

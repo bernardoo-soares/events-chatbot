@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from event_chatbot.core.logging import get_logger
 from event_chatbot.types.query import NormalizedQuery, RankedEvent
 
 EMPTY_RESPONSE = "No matching events were found. Try changing the city, date, category, or budget."
@@ -9,10 +10,16 @@ CLOSING_LINES = [
     "Have a great time out there.",
     "Pick one and make it a good one.",
 ]
+logger = get_logger(__name__)
 
 
 class TemplateResponseRenderer:
     def render_response(self, query: NormalizedQuery, events: list[RankedEvent]) -> str:
+        logger.info(
+            "Rendering template response city=%s event_count=%s",
+            query.hard_filters.city,
+            len(events),
+        )
         if not events:
             return EMPTY_RESPONSE
 

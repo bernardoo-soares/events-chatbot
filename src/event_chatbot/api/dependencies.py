@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import Depends, HTTPException
 
 from event_chatbot.core.config import Settings, get_settings
+from event_chatbot.core.logging import get_logger
 from event_chatbot.core.time import utc_now
 from event_chatbot.db.connection import connect
 from event_chatbot.db.migrations import initialize_database
@@ -17,14 +18,17 @@ from event_chatbot.retrieval.service import RetrievalService
 from event_chatbot.services.chat_service import ChatService
 
 SettingsDep = Annotated[Settings, Depends(get_settings)]
+logger = get_logger(__name__)
 
 
 def get_db_connection(settings: SettingsDep) -> Iterator[sqlite3.Connection]:
+    logger.debug("Creating request database connection path=%s", settings.database_path)
     conn = connect(settings.database_path)
     initialize_database(conn)
     try:
         yield conn
     finally:
+        logger.debug("Closing request database connection path=%s", settings.database_path)
         conn.close()
 
 
@@ -32,6 +36,11 @@ def get_retrieval_service(
     settings: SettingsDep,
     conn: Annotated[sqlite3.Connection, Depends(get_db_connection)],
 ) -> RetrievalService:
+    logger.debug(
+        "Building retrieval service default_timezone=%s default_days=%s",
+        settings.default_timezone,
+        settings.ingest_default_days,
+    )
     return RetrievalService(
         event_repository=EventRepository(conn),
         clock=utc_now,
@@ -42,13 +51,17 @@ def get_retrieval_service(
 
 def get_intent_extractor(settings: SettingsDep) -> IntentExtractor:
     if not settings.openai_api_key:
+        logger.warning("Cannot build intent extractor because OPENAI_API_KEY is missing")
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY is required for chat")
+    logger.debug("Building Agno intent extractor model=%s", settings.openai_model)
     return AgnoIntentExtractor(model_id=settings.openai_model, api_key=settings.openai_api_key)
 
 
 def get_response_renderer(settings: SettingsDep) -> ResponseRenderer:
     if not settings.openai_api_key:
+        logger.warning("Cannot build response renderer because OPENAI_API_KEY is missing")
         raise HTTPException(status_code=503, detail="OPENAI_API_KEY is required for chat")
+    logger.debug("Building template response renderer")
     return TemplateResponseRenderer()
 
 
@@ -58,6 +71,7 @@ def get_chat_service(
     response_renderer: Annotated[ResponseRenderer, Depends(get_response_renderer)],
     retrieval: Annotated[RetrievalService, Depends(get_retrieval_service)],
 ) -> ChatService:
+    logger.debug("Building chat service")
     return ChatService(
         conn=conn,
         sessions=ChatSessionRepository(conn),

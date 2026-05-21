@@ -1,7 +1,10 @@
 from datetime import datetime
 
+from event_chatbot.core.logging import get_logger
 from event_chatbot.types.events import EventCandidate
 from event_chatbot.types.query import NormalizedQuery, RankedEvent
+
+logger = get_logger(__name__)
 
 
 def rank_candidates(
@@ -9,12 +12,18 @@ def rank_candidates(
     query: NormalizedQuery,
     now: datetime,
 ) -> list[RankedEvent]:
+    logger.info(
+        "Ranking candidates candidate_count=%s city=%s used_fts=%s",
+        len(candidates),
+        query.hard_filters.city,
+        query.used_fts,
+    )
     lexical_scores = _lexical_scores(candidates, query)
     ranked = [
         _rank_candidate(candidate, query, now, lexical_scores[index])
         for index, candidate in enumerate(candidates)
     ]
-    return sorted(
+    ranked_sorted = sorted(
         ranked,
         key=lambda ranked_event: (
             -ranked_event.score,
@@ -24,6 +33,11 @@ def rank_candidates(
             ranked_event.event.id,
         ),
     )
+    logger.debug(
+        "Ranking completed top_event_ids=%s",
+        [ranked_event.event.id for ranked_event in ranked_sorted[:10]],
+    )
+    return ranked_sorted
 
 
 def _rank_candidate(
@@ -104,4 +118,3 @@ def compute_tag_overlap_score(candidate: EventCandidate, query: NormalizedQuery)
         if term is not None
     }
     return len(query_terms & event_terms) / len(query_terms)
-

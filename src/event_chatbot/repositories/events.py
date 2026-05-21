@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import datetime
 
+from event_chatbot.core.logging import get_logger
 from event_chatbot.retrieval.query_builder import build_candidate_query
 from event_chatbot.types.events import Event, EventCandidate
 from event_chatbot.types.ingestion import SourceEvent, UpsertSummary
@@ -27,6 +28,7 @@ EVENT_COLUMNS = (
     "latitude",
     "longitude",
 )
+logger = get_logger(__name__)
 
 
 class EventRepository:
@@ -34,6 +36,7 @@ class EventRepository:
         self.conn = conn
 
     def upsert_many(self, events: list[SourceEvent], now: datetime) -> UpsertSummary:
+        logger.info("Upserting normalized events count=%s", len(events))
         summary = UpsertSummary()
         now_text = _datetime_to_text(now)
 
@@ -68,23 +71,39 @@ class EventRepository:
                 )
                 summary.updated += 1
 
+        logger.info(
+            "Normalized event upsert completed inserted=%s updated=%s",
+            summary.inserted,
+            summary.updated,
+        )
         return summary
 
     def search_candidates(self, query: NormalizedQuery) -> list[EventCandidate]:
         sql, params = build_candidate_query(query)
+        logger.debug(
+            "Executing candidate search city=%s used_fts=%s limit=%s",
+            query.hard_filters.city,
+            query.used_fts,
+            query.candidate_limit,
+        )
         rows = self.conn.execute(sql, params).fetchall()
-        return [_candidate_from_row(row) for row in rows]
+        candidates = [_candidate_from_row(row) for row in rows]
+        logger.info("Candidate search returned count=%s", len(candidates))
+        return candidates
 
     def get_by_ids(self, ids: list[int]) -> list[Event]:
         if not ids:
             return []
+        logger.debug("Fetching events by ids ids=%s", ids)
         placeholders = ", ".join(["?"] * len(ids))
         rows = self.conn.execute(
             f"SELECT * FROM events WHERE id IN ({placeholders})",
             ids,
         ).fetchall()
         events_by_id = {_event_from_row(row).id: _event_from_row(row) for row in rows}
-        return [events_by_id[event_id] for event_id in ids if event_id in events_by_id]
+        events = [events_by_id[event_id] for event_id in ids if event_id in events_by_id]
+        logger.info("Fetched events by ids requested=%s found=%s", len(ids), len(events))
+        return events
 
 def _source_event_values(event: SourceEvent) -> tuple[object, ...]:
     return (

@@ -2,7 +2,10 @@ import json
 import sqlite3
 from datetime import datetime
 
+from event_chatbot.core.logging import get_logger
 from event_chatbot.types.ingestion import SourcePayload, UpsertSummary
+
+logger = get_logger(__name__)
 
 
 class RawEventRepository:
@@ -10,6 +13,7 @@ class RawEventRepository:
         self.conn = conn
 
     def upsert_many(self, payloads: list[SourcePayload], fetched_at: datetime) -> UpsertSummary:
+        logger.info("Upserting raw events count=%s", len(payloads))
         summary = UpsertSummary()
         fetched_at_text = fetched_at.isoformat()
 
@@ -39,5 +43,9 @@ class RawEventRepository:
                 )
                 summary.updated += 1
 
+        logger.info(
+            "Raw event upsert completed inserted=%s updated=%s",
+            summary.inserted,
+            summary.updated,
+        )
         return summary
-
