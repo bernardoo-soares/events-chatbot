@@ -63,6 +63,38 @@ Web app:
 http://127.0.0.1:8000
 ```
 
+## Railway Deployment
+
+The repo includes a populated demo database at:
+
+```text
+data/demo_events.db
+```
+
+Railway start command is defined in `Procfile`:
+
+```text
+web: uvicorn event_chatbot.main:app --host 0.0.0.0 --port $PORT
+```
+
+Set these Railway environment variables:
+
+```env
+APP_ENV=production
+DATABASE_PATH=data/demo_events.db
+OPEN_AI_API_KEY=your-openai-key
+OPENAI_MODEL=gpt-4o-mini
+TICKET_MASTER_CONSUMER_KEY=your-ticketmaster-key
+TICKETMASTER_BASE_URL=https://app.ticketmaster.com/discovery/v2
+AGENDALX_BASE_URL=https://www.agendalx.pt/wp-json/agendalx/v1
+AGENDALX_PER_PAGE=100
+DEFAULT_CITY=Lisbon
+DEFAULT_TIMEZONE=Europe/Lisbon
+INGEST_DEFAULT_DAYS=30
+```
+
+The deployed demo can chat and search using the committed DB immediately. New ingestion is optional.
+
 Health check:
 
 ```bash
