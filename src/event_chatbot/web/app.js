@@ -65,18 +65,40 @@ async function submitMessage(message) {
       }),
     });
 
-    const payload = await response.json();
+    const responseText = await response.text();
+    let payload;
+    try {
+      payload = JSON.parse(responseText);
+    } catch (error) {
+      console.error("Chat response was not valid JSON", error, responseText);
+      throw new Error("Invalid chat response JSON");
+    }
     removeThinkingMessage(loadingEl);
 
     if (!response.ok) {
+      console.error("Chat request failed", response.status, payload);
       renderAssistantMessage("I couldn't reach the event brain. Try again in a moment.");
       renderEventCards([]);
       return;
     }
 
-    renderAssistantMessage(payload.assistant_message || "I found some options for you.");
-    renderEventCards(payload.results || []);
+    if (!payload || typeof payload.assistant_message !== "string") {
+      console.error("Chat response missed assistant_message", payload);
+      renderAssistantMessage("I got a response, but it was missing the final message.");
+      renderEventCards([]);
+      return;
+    }
+
+    try {
+      renderAssistantMessage(payload.assistant_message);
+      renderEventCards(Array.isArray(payload.results) ? payload.results : []);
+    } catch (error) {
+      console.error("Failed to render chat response", error, payload);
+      renderAssistantMessage("I found results, but the interface could not render them.");
+      renderEventCards([]);
+    }
   } catch (error) {
+    console.error("Chat request failed before rendering", error);
     removeThinkingMessage(loadingEl);
     renderAssistantMessage("I couldn't reach the event brain. Try again in a moment.");
     renderEventCards([]);
