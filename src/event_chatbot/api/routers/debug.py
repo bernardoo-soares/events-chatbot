@@ -1,3 +1,6 @@
+import sqlite3
+from pathlib import Path
+
 from fastapi import APIRouter
 from openai import OpenAI
 
@@ -44,6 +47,58 @@ def llm_health(settings: SettingsDep) -> dict:
         result["error_type"] = type(exc).__name__
         result["error_message"] = str(exc)
         logger.exception("LLM health check failed model=%s", settings.openai_model)
+    return result
+
+
+@router.get("/db")
+def db_health(settings: SettingsDep) -> dict:
+    path = Path(settings.database_path)
+    result: dict[str, object] = {
+        "database_path": settings.database_path,
+        "file_exists": path.exists(),
+        "file_size_bytes": path.stat().st_size if path.exists() else 0,
+        "event_count": None,
+        "city_counts": {},
+        "error_type": None,
+        "error_message": None,
+    }
+    logger.info(
+        "Checking DB health path=%s file_exists=%s",
+        settings.database_path,
+        path.exists(),
+    )
+    if not path.exists():
+        logger.warning("DB health check found missing database path=%s", settings.database_path)
+        return result
+
+    try:
+        conn = sqlite3.connect(settings.database_path)
+        conn.row_factory = sqlite3.Row
+        event_count = conn.execute("SELECT COUNT(*) AS count FROM events").fetchone()["count"]
+        city_rows = conn.execute(
+            """
+            SELECT city, COUNT(*) AS count
+            FROM events
+            GROUP BY city
+            ORDER BY count DESC, city ASC
+            """
+        ).fetchall()
+        conn.close()
+        result["event_count"] = event_count
+        result["city_counts"] = {
+            row["city"] or "Unknown": row["count"]
+            for row in city_rows
+        }
+        logger.info(
+            "DB health check succeeded path=%s event_count=%s city_counts=%s",
+            settings.database_path,
+            result["event_count"],
+            result["city_counts"],
+        )
+    except Exception as exc:
+        result["error_type"] = type(exc).__name__
+        result["error_message"] = str(exc)
+        logger.exception("DB health check failed path=%s", settings.database_path)
     return result
 
 

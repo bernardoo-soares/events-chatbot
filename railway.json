@@ -4,6 +4,6 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "PYTHONPATH=/app/src:src python -m uvicorn event_chatbot.main:app --host 0.0.0.0 --port $PORT"
+    "startCommand": "DATABASE_PATH=${DATABASE_PATH:-data/demo_events.db} PYTHONPATH=/app/src:src python -m uvicorn event_chatbot.main:app --host 0.0.0.0 --port $PORT"
   }
 }
