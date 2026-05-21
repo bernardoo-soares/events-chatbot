@@ -6,14 +6,32 @@ from event_chatbot.api.dependencies import get_chat_service
 from event_chatbot.db.connection import connect
 from event_chatbot.db.migrations import initialize_database
 from event_chatbot.main import create_app
-from event_chatbot.providers.llm import IntentExtractor, ResponseRenderer
+from event_chatbot.providers.llm import IntentExtractor, RequestIntentClassifier, ResponseRenderer
 from event_chatbot.repositories.chat_sessions import ChatSessionRepository
 from event_chatbot.repositories.events import EventRepository
 from event_chatbot.retrieval.service import RetrievalService
 from event_chatbot.services.chat_service import ChatService
 from event_chatbot.types.chat import SessionState
 from event_chatbot.types.ingestion import SourceEvent
-from event_chatbot.types.query import NormalizedQuery, QuerySpec, RankedEvent
+from event_chatbot.types.query import NormalizedQuery, QuerySpec, RankedEvent, RequestIntent
+
+
+class FakeRequestIntentClassifier(RequestIntentClassifier):
+    def classify_request_intent(self, message: str, state: SessionState | None) -> RequestIntent:
+        return RequestIntent(
+            primary_intent="event_search",
+            wants_real_world_activity=True,
+            wants_catalog_event=True,
+            confidence=0.95,
+        )
+
+
+class StaticRequestIntentClassifier(RequestIntentClassifier):
+    def __init__(self, request_intent: RequestIntent):
+        self.request_intent = request_intent
+
+    def classify_request_intent(self, message: str, state: SessionState | None) -> RequestIntent:
+        return self.request_intent
 
 
 class FakeIntentExtractor(IntentExtractor):
@@ -68,6 +86,7 @@ def test_chat_endpoint_returns_grounded_results_and_persists_state(tmp_path) -> 
     service = ChatService(
         conn=conn,
         sessions=ChatSessionRepository(conn),
+        request_intent_classifier=FakeRequestIntentClassifier(),
         intent_extractor=FakeIntentExtractor(),
         response_renderer=FakeResponseRenderer(),
         retrieval=retrieval,
@@ -124,6 +143,7 @@ def test_chat_endpoint_caps_results_to_five(tmp_path) -> None:
     service = ChatService(
         conn=conn,
         sessions=ChatSessionRepository(conn),
+        request_intent_classifier=FakeRequestIntentClassifier(),
         intent_extractor=BroadLisbonIntentExtractor(),
         response_renderer=FakeResponseRenderer(),
         retrieval=retrieval,
@@ -141,3 +161,210 @@ def test_chat_endpoint_caps_results_to_five(tmp_path) -> None:
     body = response.json()
     assert len(body["results"]) == 5
     assert body["applied_filters"]["limit"] == 5
+
+
+def test_chat_endpoint_rejects_obvious_non_event_request(tmp_path) -> None:
+    conn = connect(str(tmp_path / "chat_scope.sqlite"))
+    initialize_database(conn)
+    now = datetime(2026, 5, 19, 12, 0, tzinfo=UTC)
+    retrieval = RetrievalService(
+        event_repository=EventRepository(conn),
+        clock=lambda: now,
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+    )
+    service = ChatService(
+        conn=conn,
+        sessions=ChatSessionRepository(conn),
+        request_intent_classifier=FakeRequestIntentClassifier(),
+        intent_extractor=BroadLisbonIntentExtractor(),
+        response_renderer=FakeResponseRenderer(),
+        retrieval=retrieval,
+    )
+    app = create_app()
+    app.dependency_overrides[get_chat_service] = lambda: service
+    client = TestClient(app)
+
+    response = client.post(
+        "/chat",
+        json={"session_id": "session-weather", "message": "What is the weather today?"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "event recommendations" in body["assistant_message"]
+    assert body["results"] == []
+    assert body["applied_filters"] == {}
+
+
+def test_chat_endpoint_rejects_llm_classified_non_event_request(tmp_path) -> None:
+    conn = connect(str(tmp_path / "chat_llm_scope.sqlite"))
+    initialize_database(conn)
+    now = datetime(2026, 5, 19, 12, 0, tzinfo=UTC)
+    service = ChatService(
+        conn=conn,
+        sessions=ChatSessionRepository(conn),
+        request_intent_classifier=StaticRequestIntentClassifier(
+            RequestIntent(
+                primary_intent="travel",
+                confidence=0.93,
+                excluded_reason="The user is asking for hotels.",
+            )
+        ),
+        intent_extractor=BroadLisbonIntentExtractor(),
+        response_renderer=FakeResponseRenderer(),
+        retrieval=RetrievalService(
+            event_repository=EventRepository(conn),
+            clock=lambda: now,
+            default_timezone="Europe/Lisbon",
+            default_days=30,
+        ),
+    )
+    app = create_app()
+    app.dependency_overrides[get_chat_service] = lambda: service
+    client = TestClient(app)
+
+    response = client.post(
+        "/chat",
+        json={"session_id": "session-hotels", "message": "Best places to stay in Lisbon"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "event recommendations" in body["assistant_message"]
+    assert body["results"] == []
+    assert body["applied_filters"] == {}
+
+
+def test_chat_endpoint_allows_time_bound_food_drink_activity(tmp_path) -> None:
+    conn = connect(str(tmp_path / "chat_wine.sqlite"))
+    initialize_database(conn)
+    now = datetime(2026, 5, 19, 12, 0, tzinfo=UTC)
+    event_repo = EventRepository(conn)
+    event_repo.upsert_many(
+        [
+            SourceEvent(
+                source="agendalx",
+                source_event_id="wine-1",
+                title="Lisbon Wine Tasting",
+                description="Wine, small plates, and relaxed conversation",
+                city="Lisbon",
+                category="food_drink",
+                subcategory="wine",
+                start_at=now + timedelta(hours=6),
+                status="scheduled",
+            )
+        ],
+        now,
+    )
+    conn.commit()
+
+    service = ChatService(
+        conn=conn,
+        sessions=ChatSessionRepository(conn),
+        request_intent_classifier=StaticRequestIntentClassifier(
+            RequestIntent(
+                primary_intent="venue_recommendation",
+                is_time_bound=True,
+                wants_real_world_activity=True,
+                city="Lisbon",
+                date_text="today",
+                activity_terms=["wine", "drinks"],
+                confidence=0.91,
+            )
+        ),
+        intent_extractor=BroadLisbonIntentExtractor(),
+        response_renderer=FakeResponseRenderer(),
+        retrieval=RetrievalService(
+            event_repository=event_repo,
+            clock=lambda: now,
+            default_timezone="Europe/Lisbon",
+            default_days=30,
+        ),
+    )
+    app = create_app()
+    app.dependency_overrides[get_chat_service] = lambda: service
+    client = TestClient(app)
+
+    response = client.post(
+        "/chat",
+        json={"session_id": "session-wine", "message": "Give me a place to drink wine today"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["assistant_message"] == "Found 1 event: Lisbon Wine Tasting"
+    assert body["results"][0]["event"]["title"] == "Lisbon Wine Tasting"
+    assert "wine" in body["applied_filters"]["fts_terms"]
+
+
+def test_chat_endpoint_clarifies_low_confidence_scope(tmp_path) -> None:
+    conn = connect(str(tmp_path / "chat_low_confidence.sqlite"))
+    initialize_database(conn)
+    now = datetime(2026, 5, 19, 12, 0, tzinfo=UTC)
+    service = ChatService(
+        conn=conn,
+        sessions=ChatSessionRepository(conn),
+        request_intent_classifier=StaticRequestIntentClassifier(
+            RequestIntent(
+                primary_intent="unknown",
+                confidence=0.52,
+                excluded_reason="The request may be event-related but is ambiguous.",
+            )
+        ),
+        intent_extractor=BroadLisbonIntentExtractor(),
+        response_renderer=FakeResponseRenderer(),
+        retrieval=RetrievalService(
+            event_repository=EventRepository(conn),
+            clock=lambda: now,
+            default_timezone="Europe/Lisbon",
+            default_days=30,
+        ),
+    )
+    app = create_app()
+    app.dependency_overrides[get_chat_service] = lambda: service
+    client = TestClient(app)
+
+    response = client.post(
+        "/chat",
+        json={"session_id": "session-ambiguous", "message": "Any ideas?"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "What kind of plan" in body["assistant_message"]
+    assert body["results"] == []
+    assert body["applied_filters"] == {}
+
+
+def test_chat_endpoint_rejects_city_only_query_spec_without_event_language(tmp_path) -> None:
+    conn = connect(str(tmp_path / "chat_empty_spec.sqlite"))
+    initialize_database(conn)
+    now = datetime(2026, 5, 19, 12, 0, tzinfo=UTC)
+    service = ChatService(
+        conn=conn,
+        sessions=ChatSessionRepository(conn),
+        request_intent_classifier=FakeRequestIntentClassifier(),
+        intent_extractor=BroadLisbonIntentExtractor(),
+        response_renderer=FakeResponseRenderer(),
+        retrieval=RetrievalService(
+            event_repository=EventRepository(conn),
+            clock=lambda: now,
+            default_timezone="Europe/Lisbon",
+            default_days=30,
+        ),
+    )
+    app = create_app()
+    app.dependency_overrides[get_chat_service] = lambda: service
+    client = TestClient(app)
+
+    response = client.post(
+        "/chat",
+        json={"session_id": "session-city-only", "message": "Lisbon"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "What kind of plan" in body["assistant_message"]
+    assert body["results"] == []
+    assert body["applied_filters"] == {}

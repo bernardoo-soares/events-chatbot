@@ -6,9 +6,32 @@ from pydantic import BaseModel, Field
 from event_chatbot.types.events import EventCandidate
 
 AllowedTimeOfDay = Literal["morning", "afternoon", "evening", "night"]
+PrimaryIntent = Literal[
+    "event_search",
+    "activity_plan",
+    "venue_recommendation",
+    "weather",
+    "travel",
+    "general_question",
+    "unknown",
+]
+
+
+class RequestIntent(BaseModel):
+    primary_intent: PrimaryIntent
+    is_time_bound: bool = False
+    wants_real_world_activity: bool = False
+    wants_catalog_event: bool = False
+    city: str | None = None
+    date_text: str | None = None
+    activity_terms: list[str] = Field(default_factory=list)
+    excluded_reason: str | None = None
+    confidence: float = Field(ge=0.0, le=1.0)
 
 
 class QuerySpec(BaseModel):
+    is_event_search: bool = True
+    out_of_scope_reason: str | None = None
     city: str | None = None
     raw_category_text: str | None = None
     categories: list[str] = Field(default_factory=list)

@@ -8,12 +8,65 @@ from pydantic import BaseModel, ValidationError
 from event_chatbot.core.logging import get_logger
 from event_chatbot.providers.llm import IntentExtractionError
 from event_chatbot.types.chat import SessionState
-from event_chatbot.types.query import NormalizedQuery, QuerySpec, RankedEvent
+from event_chatbot.types.query import NormalizedQuery, QuerySpec, RankedEvent, RequestIntent
 
 logger = get_logger(__name__)
 
+REQUEST_INTENT_INSTRUCTIONS = [
+    "Extract the user's request intent for a local events and activity chatbot.",
+    "Return only fields in the RequestIntent schema.",
+    "Do not decide whether the app should block or retrieve. Python policy will decide.",
+    "Use primary_intent='event_search' for explicit catalog events: concerts, exhibitions, "
+    "theatre, cinema, festivals, workshops, tours, sports events, shows, talks, or parties.",
+    "Use primary_intent='activity_plan' for local plans or things to do, even when the user "
+    "does not use the word event.",
+    "Use primary_intent='venue_recommendation' for restaurants, bars, clubs, places, or venues.",
+    "Use primary_intent='weather' only when the user mainly asks for weather or forecast.",
+    "Use primary_intent='travel' for hotels, flights, routes, transport, traffic, or directions.",
+    "Use primary_intent='general_question' for news, facts, code, recipes, medical/legal advice, "
+    "stocks, crypto, or unrelated requests.",
+    "Use primary_intent='unknown' when the request is too vague.",
+    "Set wants_real_world_activity=true when the user wants to go somewhere or do something "
+    "locally, including date nights, cheap plans, relaxed plans, nightlife, drinking wine, "
+    "drinks, tastings, rainy-day plans, or family activities.",
+    "Set wants_catalog_event=true when the wording suggests ticketed/listed/scheduled events.",
+    "Set is_time_bound=true for today, tonight, tomorrow, this week, this weekend, soon, now, "
+    "or any explicit date/time.",
+    "Extract city and date_text if present, but do not invent them.",
+    "Put useful search words in activity_terms, for example wine, drinks, tasting, jazz, "
+    "exhibition, relaxed, family, nightlife.",
+    "Generic restaurant or bar listings are venue_recommendation, not event_search.",
+    "Time-bound food/drink activities, tastings, nightlife plans, or event-like outings should "
+    "set wants_real_world_activity=true.",
+    "Weather-only requests should be weather with wants_real_world_activity=false.",
+    "Weather plus 'what can I do' or 'events if it rains' should set "
+    "wants_real_world_activity=true.",
+    "Example: 'What is the weather tomorrow?' -> "
+    '{"primary_intent":"weather","is_time_bound":true,'
+    '"wants_real_world_activity":false,"wants_catalog_event":false,'
+    '"city":null,"date_text":"tomorrow","activity_terms":[],'
+    '"excluded_reason":"The user asks only for weather.","confidence":0.98}',
+    "Example: 'give me a place to drink wine today' -> "
+    '{"primary_intent":"activity_plan","is_time_bound":true,'
+    '"wants_real_world_activity":true,"wants_catalog_event":false,'
+    '"city":null,"date_text":"today","activity_terms":["wine","drinks"],'
+    '"excluded_reason":null,"confidence":0.92}',
+    "Example: 'best restaurants in Lisbon' -> "
+    '{"primary_intent":"venue_recommendation","is_time_bound":false,'
+    '"wants_real_world_activity":false,"wants_catalog_event":false,'
+    '"city":"Lisbon","date_text":null,"activity_terms":["restaurants"],'
+    '"excluded_reason":"The user asks for generic venue listings.","confidence":0.88}',
+    "Example: 'what can I do in Lisbon if it rains?' -> "
+    '{"primary_intent":"activity_plan","is_time_bound":false,'
+    '"wants_real_world_activity":true,"wants_catalog_event":false,'
+    '"city":"Lisbon","date_text":null,"activity_terms":["rainy day","indoor"],'
+    '"excluded_reason":null,"confidence":0.90}',
+]
+
 INTENT_INSTRUCTIONS = [
     "Extract event-search intent from the user message.",
+    "This agent runs only after a separate scope classifier has accepted the message "
+    "as event-related.",
     "Return only fields in the QuerySpec schema.",
     "Do not write SQL.",
     "Do not invent event data.",
@@ -52,11 +105,57 @@ RESPONSE_INSTRUCTIONS = [
 class AgnoIntentExtractor:
     def __init__(self, model_id: str, api_key: str):
         self.model_id = model_id
+        self.request_intent_agent = Agent(
+            model=OpenAIResponses(id=model_id, api_key=api_key),
+            output_schema=RequestIntent,
+            instructions=REQUEST_INTENT_INSTRUCTIONS,
+        )
         self.agent = Agent(
             model=OpenAIResponses(id=model_id, api_key=api_key),
             output_schema=QuerySpec,
             instructions=INTENT_INSTRUCTIONS,
         )
+
+    def classify_request_intent(self, message: str, state: SessionState | None) -> RequestIntent:
+        logger.info(
+            "Starting LLM request-intent classification model=%s "
+            "message_chars=%s has_previous_query=%s",
+            self.model_id,
+            len(message),
+            state is not None and state.current_query is not None,
+        )
+        payload: dict[str, Any] = {"user_message": message}
+        if state is not None and state.current_query is not None:
+            payload["current_query"] = state.current_query.model_dump(mode="json")
+        try:
+            response = self.request_intent_agent.run(json.dumps(payload, ensure_ascii=True))
+        except Exception as exc:
+            error_message = (
+                f"LLM request-intent classification failed: {type(exc).__name__}: {exc}"
+            )
+            logger.exception(
+                "LLM request-intent classification call failed model=%s",
+                self.model_id,
+            )
+            raise IntentExtractionError(error_message) from exc
+        content = getattr(response, "content", response)
+        try:
+            request_intent = _parse_request_intent(content)
+        except ValidationError as exc:
+            logger.exception(
+                "LLM returned invalid request-intent payload type=%s value=%r",
+                type(content).__name__,
+                content,
+            )
+            raise IntentExtractionError(
+                f"LLM returned invalid request-intent payload: {content!r}"
+            ) from exc
+        logger.info(
+            "LLM request-intent classification succeeded primary_intent=%s confidence=%.2f",
+            request_intent.primary_intent,
+            request_intent.confidence,
+        )
+        return request_intent
 
     def extract_intent(self, message: str, state: SessionState | None) -> QuerySpec:
         logger.info(
@@ -75,32 +174,8 @@ class AgnoIntentExtractor:
             logger.exception("LLM intent extraction call failed model=%s", self.model_id)
             raise IntentExtractionError(error_message) from exc
         content = getattr(response, "content", response)
-        if isinstance(content, QuerySpec):
-            logger.info(
-                "LLM intent extraction succeeded city=%s text_query=%s needs_clarification=%s",
-                content.city,
-                " ".join(content.keywords),
-                content.needs_clarification,
-            )
-            return content
-        if isinstance(content, BaseModel):
-            spec = QuerySpec.model_validate(content.model_dump())
-            logger.info(
-                "LLM intent extraction succeeded city=%s text_query=%s needs_clarification=%s",
-                spec.city,
-                " ".join(spec.keywords),
-                spec.needs_clarification,
-            )
-            return spec
         try:
-            spec = QuerySpec.model_validate(content)
-            logger.info(
-                "LLM intent extraction succeeded city=%s text_query=%s needs_clarification=%s",
-                spec.city,
-                " ".join(spec.keywords),
-                spec.needs_clarification,
-            )
-            return spec
+            spec = _parse_query_spec(content)
         except ValidationError as exc:
             logger.exception(
                 "LLM returned invalid intent payload type=%s value=%r",
@@ -109,6 +184,29 @@ class AgnoIntentExtractor:
             )
             error_message = f"LLM returned invalid intent payload: {content!r}"
             raise IntentExtractionError(error_message) from exc
+        logger.info(
+            "LLM intent extraction succeeded city=%s text_query=%s needs_clarification=%s",
+            spec.city,
+            " ".join(spec.keywords),
+            spec.needs_clarification,
+        )
+        return spec
+
+
+def _parse_request_intent(content: Any) -> RequestIntent:
+    if isinstance(content, RequestIntent):
+        return content
+    if isinstance(content, BaseModel):
+        return RequestIntent.model_validate(content.model_dump())
+    return RequestIntent.model_validate(content)
+
+
+def _parse_query_spec(content: Any) -> QuerySpec:
+    if isinstance(content, QuerySpec):
+        return content
+    if isinstance(content, BaseModel):
+        return QuerySpec.model_validate(content.model_dump())
+    return QuerySpec.model_validate(content)
 
 
 class AgnoResponseRenderer:

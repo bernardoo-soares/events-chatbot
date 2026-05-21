@@ -10,7 +10,7 @@ from event_chatbot.core.time import utc_now
 from event_chatbot.db.connection import connect
 from event_chatbot.db.migrations import initialize_database
 from event_chatbot.providers.agno_llm import AgnoIntentExtractor
-from event_chatbot.providers.llm import IntentExtractor, ResponseRenderer
+from event_chatbot.providers.llm import IntentExtractor, RequestIntentClassifier, ResponseRenderer
 from event_chatbot.providers.template_response import TemplateResponseRenderer
 from event_chatbot.repositories.chat_sessions import ChatSessionRepository
 from event_chatbot.repositories.events import EventRepository
@@ -57,6 +57,14 @@ def get_intent_extractor(settings: SettingsDep) -> IntentExtractor:
     return AgnoIntentExtractor(model_id=settings.openai_model, api_key=settings.openai_api_key)
 
 
+def get_request_intent_classifier(settings: SettingsDep) -> RequestIntentClassifier:
+    if not settings.openai_api_key:
+        logger.warning("Cannot build request-intent classifier because OPENAI_API_KEY is missing")
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY is required for chat")
+    logger.debug("Building Agno request-intent classifier model=%s", settings.openai_model)
+    return AgnoIntentExtractor(model_id=settings.openai_model, api_key=settings.openai_api_key)
+
+
 def get_response_renderer(settings: SettingsDep) -> ResponseRenderer:
     if not settings.openai_api_key:
         logger.warning("Cannot build response renderer because OPENAI_API_KEY is missing")
@@ -67,6 +75,10 @@ def get_response_renderer(settings: SettingsDep) -> ResponseRenderer:
 
 def get_chat_service(
     conn: Annotated[sqlite3.Connection, Depends(get_db_connection)],
+    request_intent_classifier: Annotated[
+        RequestIntentClassifier,
+        Depends(get_request_intent_classifier),
+    ],
     intent_extractor: Annotated[IntentExtractor, Depends(get_intent_extractor)],
     response_renderer: Annotated[ResponseRenderer, Depends(get_response_renderer)],
     retrieval: Annotated[RetrievalService, Depends(get_retrieval_service)],
@@ -75,6 +87,7 @@ def get_chat_service(
     return ChatService(
         conn=conn,
         sessions=ChatSessionRepository(conn),
+        request_intent_classifier=request_intent_classifier,
         intent_extractor=intent_extractor,
         response_renderer=response_renderer,
         retrieval=retrieval,
