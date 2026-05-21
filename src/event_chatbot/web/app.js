@@ -78,30 +78,29 @@ async function submitMessage(message) {
     if (!response.ok) {
       console.error("Chat request failed", response.status, payload);
       renderAssistantMessage("I couldn't reach the event brain. Try again in a moment.");
-      renderEventCards([]);
       return;
     }
 
     if (!payload || typeof payload.assistant_message !== "string") {
       console.error("Chat response missed assistant_message", payload);
       renderAssistantMessage("I got a response, but it was missing the final message.");
-      renderEventCards([]);
       return;
     }
 
     try {
       renderAssistantMessage(payload.assistant_message);
-      renderEventCards(Array.isArray(payload.results) ? payload.results : []);
+      const results = Array.isArray(payload.results) ? payload.results : [];
+      if (results.length) {
+        renderEventCards(results);
+      }
     } catch (error) {
       console.error("Failed to render chat response", error, payload);
       renderAssistantMessage("I found results, but the interface could not render them.");
-      renderEventCards([]);
     }
   } catch (error) {
     console.error("Chat request failed before rendering", error);
     removeThinkingMessage(loadingEl);
     renderAssistantMessage("I couldn't reach the event brain. Try again in a moment.");
-    renderEventCards([]);
   } finally {
     setLoading(false);
   }

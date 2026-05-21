@@ -62,11 +62,25 @@ class RetrievalService:
         )
         candidates = self.event_repository.search_candidates(query)
         ranked = rank_candidates(candidates, query, self.clock())
-        results = ranked[: query.limit]
+        unique_ranked = _dedupe_by_title(ranked)
+        results = unique_ranked[: query.limit]
         logger.info(
-            "Search completed candidate_count=%s result_count=%s result_ids=%s",
+            "Search completed candidate_count=%s unique_count=%s result_count=%s result_ids=%s",
             len(candidates),
+            len(unique_ranked),
             len(results),
             [result.event.id for result in results],
         )
         return results
+
+
+def _dedupe_by_title(events: list[RankedEvent]) -> list[RankedEvent]:
+    seen_titles: set[str] = set()
+    unique_events: list[RankedEvent] = []
+    for ranked_event in events:
+        title_key = " ".join(ranked_event.event.title.casefold().split())
+        if title_key in seen_titles:
+            continue
+        seen_titles.add(title_key)
+        unique_events.append(ranked_event)
+    return unique_events
