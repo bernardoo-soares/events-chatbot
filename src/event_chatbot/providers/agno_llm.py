@@ -3,7 +3,7 @@ from typing import Any
 
 from agno.agent import Agent
 from agno.models.openai import OpenAIResponses
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from event_chatbot.types.chat import SessionState
 from event_chatbot.types.query import NormalizedQuery, QuerySpec, RankedEvent
@@ -57,13 +57,20 @@ class AgnoIntentExtractor:
         payload: dict[str, Any] = {"user_message": message}
         if state is not None and state.current_query is not None:
             payload["current_query"] = state.current_query.model_dump(mode="json")
-        response = self.agent.run(json.dumps(payload, ensure_ascii=True))
+        try:
+            response = self.agent.run(json.dumps(payload, ensure_ascii=True))
+        except Exception as exc:
+            message = f"LLM intent extraction failed: {type(exc).__name__}: {exc}"
+            raise RuntimeError(message) from exc
         content = getattr(response, "content", response)
         if isinstance(content, QuerySpec):
             return content
         if isinstance(content, BaseModel):
             return QuerySpec.model_validate(content.model_dump())
-        return QuerySpec.model_validate(content)
+        try:
+            return QuerySpec.model_validate(content)
+        except ValidationError as exc:
+            raise RuntimeError(f"LLM returned invalid intent payload: {content!r}") from exc
 
 
 class AgnoResponseRenderer:

@@ -1,5 +1,7 @@
 import sqlite3
 
+from fastapi import HTTPException
+
 from event_chatbot.db.connection import transaction
 from event_chatbot.providers.llm import IntentExtractor, ResponseRenderer
 from event_chatbot.repositories.chat_sessions import ChatSessionRepository
@@ -29,7 +31,10 @@ class ChatService:
         with transaction(self.conn):
             state = self.sessions.get_or_create(request.session_id, now)
             self.sessions.append_message(request.session_id, "user", request.message, now)
-            spec = self.intent_extractor.extract_intent(request.message, state)
+            try:
+                spec = self.intent_extractor.extract_intent(request.message, state)
+            except RuntimeError as exc:
+                raise HTTPException(status_code=503, detail=str(exc)) from exc
 
             if spec.needs_clarification:
                 assistant_message = spec.clarification_question or "Can you clarify your request?"

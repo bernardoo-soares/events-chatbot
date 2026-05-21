@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
 
+from event_chatbot.api.dependencies import get_settings
+from event_chatbot.core.config import Settings
 from event_chatbot.main import create_app
 
 
@@ -29,3 +31,16 @@ def test_static_app_assets_are_served() -> None:
     assert app_response.status_code == 200
     assert css_response.status_code == 200
     assert "I'm thinking" in app_response.text
+
+
+def test_llm_health_reports_missing_key() -> None:
+    app = create_app()
+    app.dependency_overrides[get_settings] = lambda: Settings(_env_file=None)
+    client = TestClient(app)
+
+    response = client.get("/health/llm")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["openai_key_loaded"] is False
+    assert body["openai_connection"] == "missing_key"

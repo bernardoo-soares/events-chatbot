@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from event_chatbot.api.routers.chat import router as chat_router
+from event_chatbot.api.routers.debug import router as debug_router
 from event_chatbot.api.routers.events import router as events_router
 from event_chatbot.api.routers.health import router as health_router
 from event_chatbot.api.routers.ingest import router as ingest_router
@@ -20,6 +21,7 @@ def create_app() -> FastAPI:
     )
     app.mount("/static", StaticFiles(directory=str(WEB_DIR)), name="static")
     app.include_router(health_router)
+    app.include_router(debug_router)
     app.include_router(ingest_router)
     app.include_router(events_router)
     app.include_router(chat_router)
