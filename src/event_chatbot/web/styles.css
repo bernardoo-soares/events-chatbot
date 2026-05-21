@@ -341,7 +341,7 @@ h1 {
 
 .bubble {
   max-width: min(84%, 720px);
-  padding: 8px 14px 10px;
+  padding: 5px 14px 10px;
   border-radius: 18px;
   background: var(--glass-strong);
   color: var(--ink);
