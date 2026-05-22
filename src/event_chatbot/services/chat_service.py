@@ -11,6 +11,11 @@ from event_chatbot.providers.llm import (
     ResponseRenderer,
 )
 from event_chatbot.repositories.chat_sessions import ChatSessionRepository
+from event_chatbot.retrieval.context import (
+    allowed_carryover_fields,
+    merge_query_spec_for_context,
+    should_use_previous_context,
+)
 from event_chatbot.retrieval.scope import (
     CLARIFICATION_RESPONSE,
     can_retrieve,
@@ -99,8 +104,18 @@ class ChatService:
                     results=[],
                 )
 
+            context_state = state if should_use_previous_context(request_intent, state) else None
+            carryover_fields = allowed_carryover_fields(request_intent)
+            logger.info(
+                "Chat context policy session_id=%s role=%s use_previous=%s carryover=%s",
+                request.session_id,
+                request_intent.conversation_role,
+                context_state is not None,
+                sorted(carryover_fields),
+            )
+
             try:
-                spec = self.intent_extractor.extract_intent(request.message, state)
+                spec = self.intent_extractor.extract_intent(request.message, context_state)
             except IntentExtractionError as exc:
                 logger.exception(
                     "Chat request failed during intent extraction session_id=%s",
@@ -152,7 +167,11 @@ class ChatService:
                     results=[],
                 )
 
-            normalized = self.retrieval.normalize(spec, previous=state)
+            normalized = self.retrieval.normalize(
+                spec,
+                previous=context_state,
+                carryover_fields=carryover_fields,
+            )
             normalized.limit = min(normalized.limit, MAX_CHAT_RESULTS)
             logger.info(
                 "Chat query normalized session_id=%s city=%s fts_terms=%s "
@@ -171,7 +190,11 @@ class ChatService:
                 len(results),
                 [result.event.id for result in results],
             )
-            state.current_query = spec
+            state.current_query = merge_query_spec_for_context(
+                spec,
+                context_state,
+                carryover_fields,
+            )
             state.last_result_ids = [result.event.id for result in results]
             self.sessions.save_state(request.session_id, state, now)
             assistant_message = self.response_renderer.render_response(normalized, results)

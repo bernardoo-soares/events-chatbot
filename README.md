@@ -42,6 +42,9 @@ APP_ENV=local
 DATABASE_PATH=data/events.sqlite
 OPENAI_API_KEY=your-openai-key
 OPENAI_MODEL=gpt-4o-mini
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+SEMANTIC_RANKING_ENABLED=true
+EMBEDDING_BATCH_SIZE=100
 TICKETMASTER_API_KEY=your-ticketmaster-key
 TICKETMASTER_BASE_URL=https://app.ticketmaster.com/discovery/v2
 AGENDALX_BASE_URL=https://www.agendalx.pt/wp-json/agendalx/v1
@@ -50,6 +53,20 @@ DEFAULT_CITY=Lisbon
 DEFAULT_TIMEZONE=Europe/Lisbon
 INGEST_DEFAULT_DAYS=30
 ```
+
+## Semantic Ranking
+
+Semantic ranking uses OpenAI embeddings over stored event rows. Apply/backfill embeddings after
+ingesting or changing the demo database:
+
+```bash
+curl -X POST http://127.0.0.1:8000/embeddings/backfill ^
+  -H "Content-Type: application/json" ^
+  -d "{\"limit\":1200}"
+```
+
+Retrieval still uses deterministic city/date/status/price filters first. Embeddings only influence
+the final ranking score.
 
 ## Run
 
@@ -84,6 +101,9 @@ APP_ENV=production
 DATABASE_PATH=data/demo_events.db
 OPEN_AI_API_KEY=your-openai-key
 OPENAI_MODEL=gpt-4o-mini
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+SEMANTIC_RANKING_ENABLED=true
+EMBEDDING_BATCH_SIZE=100
 TICKET_MASTER_CONSUMER_KEY=your-ticketmaster-key
 TICKETMASTER_BASE_URL=https://app.ticketmaster.com/discovery/v2
 AGENDALX_BASE_URL=https://www.agendalx.pt/wp-json/agendalx/v1

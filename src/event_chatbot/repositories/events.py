@@ -105,6 +105,20 @@ class EventRepository:
         logger.info("Fetched events by ids requested=%s found=%s", len(ids), len(events))
         return events
 
+    def list_for_embedding_backfill(self, limit: int) -> list[Event]:
+        rows = self.conn.execute(
+            """
+            SELECT *
+            FROM events
+            ORDER BY last_seen_at DESC, id ASC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        events = [_event_from_row(row) for row in rows]
+        logger.info("Loaded events for embedding backfill count=%s", len(events))
+        return events
+
 def _source_event_values(event: SourceEvent) -> tuple[object, ...]:
     return (
         event.source,

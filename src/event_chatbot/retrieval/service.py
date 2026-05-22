@@ -5,8 +5,10 @@ from event_chatbot.core.logging import get_logger
 from event_chatbot.repositories.events import EventRepository
 from event_chatbot.retrieval.normalization import normalize_query
 from event_chatbot.retrieval.ranking import rank_candidates
+from event_chatbot.retrieval.semantic import SemanticScorer
 from event_chatbot.types.chat import SessionState
-from event_chatbot.types.query import NormalizedQuery, QuerySpec, RankedEvent
+from event_chatbot.types.events import EventCandidate
+from event_chatbot.types.query import CarryoverField, NormalizedQuery, QuerySpec, RankedEvent
 
 Clock = Callable[[], datetime]
 logger = get_logger(__name__)
@@ -19,13 +21,20 @@ class RetrievalService:
         clock: Clock,
         default_timezone: str,
         default_days: int,
+        semantic_scorer: SemanticScorer | None = None,
     ):
         self.event_repository = event_repository
         self.clock = clock
         self.default_timezone = default_timezone
         self.default_days = default_days
+        self.semantic_scorer = semantic_scorer
 
-    def normalize(self, spec: QuerySpec, previous: SessionState | None = None) -> NormalizedQuery:
+    def normalize(
+        self,
+        spec: QuerySpec,
+        previous: SessionState | None = None,
+        carryover_fields: set[CarryoverField] | None = None,
+    ) -> NormalizedQuery:
         logger.info(
             "Normalizing query city=%s categories=%s keywords=%s date_text=%s previous_state=%s",
             spec.city,
@@ -37,6 +46,7 @@ class RetrievalService:
         normalized = normalize_query(
             spec,
             previous=previous,
+            carryover_fields=carryover_fields,
             now=self.clock(),
             default_timezone=self.default_timezone,
             default_days=self.default_days,
@@ -61,7 +71,8 @@ class RetrievalService:
             query.candidate_limit,
         )
         candidates = self.event_repository.search_candidates(query)
-        ranked = rank_candidates(candidates, query, self.clock())
+        semantic_scores = self._semantic_scores(query, candidates)
+        ranked = rank_candidates(candidates, query, self.clock(), semantic_scores)
         unique_ranked = _dedupe_by_title(ranked)
         results = unique_ranked[: query.limit]
         logger.info(
@@ -72,6 +83,21 @@ class RetrievalService:
             [result.event.id for result in results],
         )
         return results
+
+    def _semantic_scores(
+        self,
+        query: NormalizedQuery,
+        candidates: list[EventCandidate],
+    ) -> dict[int, float]:
+        if self.semantic_scorer is None:
+            return {}
+        try:
+            scores = self.semantic_scorer.score(query, candidates)
+        except Exception:
+            logger.exception("Semantic scoring failed; continuing with neutral semantic scores")
+            return {}
+        logger.info("Semantic scoring completed scored_count=%s", len(scores))
+        return scores
 
 
 def _dedupe_by_title(events: list[RankedEvent]) -> list[RankedEvent]:

@@ -16,6 +16,22 @@ REQUEST_INTENT_INSTRUCTIONS = [
     "Extract the user's request intent for a local events and activity chatbot.",
     "Return only fields in the RequestIntent schema.",
     "Do not decide whether the app should block or retrieve. Python policy will decide.",
+    "Classify conversation_role using the previous current_query only to understand whether the "
+    "new user message depends on prior context.",
+    "Use conversation_role='new_search' when the message contains a fresh request with its own "
+    "activity, category, city, date, or vibe. New searches should usually have "
+    "context_carryover=[].",
+    "Use conversation_role='follow_up_refinement' when the message is incomplete without prior "
+    "context and modifies one or two fields, for example 'what about tomorrow', 'make it cheaper', "
+    "'under 25', 'only comedy', or 'something more relaxed'.",
+    "Use conversation_role='follow_up_more_results' when the user asks for more, other options, "
+    "alternatives, or similar results.",
+    "Use conversation_role='follow_up_comparison' when the user asks about results already shown.",
+    "Use conversation_role='ambiguous' when the relationship to prior context is unclear.",
+    "Set context_carryover to exactly the previous query fields that should survive into this "
+    "turn. Allowed values are city, date, budget, category, keywords, vibes.",
+    "Do not carry fields contradicted or replaced by the new message. If the new message gives a "
+    "different city, date, budget, category, keyword, or vibe, the new value wins.",
     "Use primary_intent='event_search' for explicit catalog events: concerts, exhibitions, "
     "theatre, cinema, festivals, workshops, tours, sports events, shows, talks, or parties.",
     "Use primary_intent='activity_plan' for local plans or things to do, even when the user "
@@ -42,25 +58,50 @@ REQUEST_INTENT_INSTRUCTIONS = [
     "Weather plus 'what can I do' or 'events if it rains' should set "
     "wants_real_world_activity=true.",
     "Example: 'What is the weather tomorrow?' -> "
-    '{"primary_intent":"weather","is_time_bound":true,'
+    '{"primary_intent":"weather","conversation_role":"new_search","context_carryover":[],'
+    '"is_time_bound":true,'
     '"wants_real_world_activity":false,"wants_catalog_event":false,'
     '"city":null,"date_text":"tomorrow","activity_terms":[],'
     '"excluded_reason":"The user asks only for weather.","confidence":0.98}',
     "Example: 'give me a place to drink wine today' -> "
-    '{"primary_intent":"activity_plan","is_time_bound":true,'
+    '{"primary_intent":"activity_plan","conversation_role":"new_search",'
+    '"context_carryover":[],"is_time_bound":true,'
     '"wants_real_world_activity":true,"wants_catalog_event":false,'
     '"city":null,"date_text":"today","activity_terms":["wine","drinks"],'
     '"excluded_reason":null,"confidence":0.92}',
     "Example: 'best restaurants in Lisbon' -> "
-    '{"primary_intent":"venue_recommendation","is_time_bound":false,'
+    '{"primary_intent":"venue_recommendation","conversation_role":"new_search",'
+    '"context_carryover":[],"is_time_bound":false,'
     '"wants_real_world_activity":false,"wants_catalog_event":false,'
     '"city":"Lisbon","date_text":null,"activity_terms":["restaurants"],'
     '"excluded_reason":"The user asks for generic venue listings.","confidence":0.88}',
     "Example: 'what can I do in Lisbon if it rains?' -> "
-    '{"primary_intent":"activity_plan","is_time_bound":false,'
+    '{"primary_intent":"activity_plan","conversation_role":"new_search",'
+    '"context_carryover":[],"is_time_bound":false,'
     '"wants_real_world_activity":true,"wants_catalog_event":false,'
     '"city":"Lisbon","date_text":null,"activity_terms":["rainy day","indoor"],'
     '"excluded_reason":null,"confidence":0.90}',
+    "Example with previous current_query 'Madrid under 25 euros': "
+    "'I want something relaxed in Lisbon this weekend' -> "
+    '{"primary_intent":"activity_plan","conversation_role":"new_search",'
+    '"context_carryover":[],"is_time_bound":true,'
+    '"wants_real_world_activity":true,"wants_catalog_event":false,'
+    '"city":"Lisbon","date_text":"this weekend","activity_terms":["relaxed"],'
+    '"excluded_reason":null,"confidence":0.90}',
+    "Example with previous current_query 'comedy in Madrid under 25 euros': "
+    "'what about tomorrow?' -> "
+    '{"primary_intent":"activity_plan","conversation_role":"follow_up_refinement",'
+    '"context_carryover":["city","budget","category","keywords","vibes"],'
+    '"is_time_bound":true,"wants_real_world_activity":true,"wants_catalog_event":false,'
+    '"city":null,"date_text":"tomorrow","activity_terms":[],'
+    '"excluded_reason":null,"confidence":0.86}',
+    "Example with previous current_query 'concerts in Lisbon this weekend': "
+    "'make it under 25' -> "
+    '{"primary_intent":"activity_plan","conversation_role":"follow_up_refinement",'
+    '"context_carryover":["city","date","category","keywords","vibes"],'
+    '"is_time_bound":false,"wants_real_world_activity":true,"wants_catalog_event":false,'
+    '"city":null,"date_text":null,"activity_terms":[],'
+    '"excluded_reason":null,"confidence":0.88}',
 ]
 
 INTENT_INSTRUCTIONS = [

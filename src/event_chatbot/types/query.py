@@ -15,10 +15,20 @@ PrimaryIntent = Literal[
     "general_question",
     "unknown",
 ]
+ConversationRole = Literal[
+    "new_search",
+    "follow_up_refinement",
+    "follow_up_more_results",
+    "follow_up_comparison",
+    "ambiguous",
+]
+CarryoverField = Literal["city", "date", "budget", "category", "keywords", "vibes"]
 
 
 class RequestIntent(BaseModel):
     primary_intent: PrimaryIntent
+    conversation_role: ConversationRole = "new_search"
+    context_carryover: list[CarryoverField] = Field(default_factory=list)
     is_time_bound: bool = False
     wants_real_world_activity: bool = False
     wants_catalog_event: bool = False
@@ -67,6 +77,8 @@ class NormalizedQuery(BaseModel):
     candidate_limit: int = Field(default=200, gt=0)
     used_fts: bool = False
     fts_query: str | None = None
+    semantic_terms: list[str] = Field(default_factory=list)
+    carryover_fields: list[CarryoverField] = Field(default_factory=list)
 
 
 class SearchRequest(BaseModel):
@@ -82,6 +94,7 @@ class RankedEvent(BaseModel):
     event: EventCandidate
     score: float
     lexical_score: float
+    semantic_score: float = 0.5
     temporal_score: float
     price_score: float
     tag_overlap_score: float

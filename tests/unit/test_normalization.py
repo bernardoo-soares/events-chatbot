@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 from event_chatbot.retrieval.normalization import normalize_query
+from event_chatbot.types.chat import SessionState
 from event_chatbot.types.query import QuerySpec
 
 
@@ -90,3 +91,60 @@ def test_past_only_date_window_falls_back_to_default_upcoming_window() -> None:
 
     assert query.hard_filters.date_from == now
     assert query.hard_filters.date_to == datetime(2026, 6, 18, 12, 0, tzinfo=UTC)
+
+
+def test_normalize_query_does_not_merge_previous_without_carryover_fields() -> None:
+    now = datetime(2026, 5, 19, 12, 0, tzinfo=UTC)
+    previous = SessionState(
+        session_id="session-1",
+        created_at=now,
+        updated_at=now,
+        current_query=QuerySpec(
+            city="Madrid",
+            keywords=["under 25 euros"],
+            max_price=25,
+        ),
+    )
+
+    query = normalize_query(
+        QuerySpec(city="Lisbon", vibes=["relaxed"], date_text="this weekend"),
+        previous=previous,
+        carryover_fields=set(),
+        now=now,
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+    )
+
+    assert query.hard_filters.city == "Lisbon"
+    assert query.hard_filters.max_price is None
+    assert "under 25 euros" not in query.fts_terms
+
+
+def test_normalize_query_merges_only_allowed_previous_fields() -> None:
+    now = datetime(2026, 5, 19, 12, 0, tzinfo=UTC)
+    previous = SessionState(
+        session_id="session-1",
+        created_at=now,
+        updated_at=now,
+        current_query=QuerySpec(
+            city="Madrid",
+            keywords=["comedy"],
+            max_price=25,
+            date_text="tonight",
+        ),
+    )
+
+    query = normalize_query(
+        QuerySpec(date_text="tomorrow"),
+        previous=previous,
+        carryover_fields={"city", "budget", "keywords"},
+        now=now,
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+    )
+
+    assert query.hard_filters.city == "Madrid"
+    assert query.hard_filters.max_price == 25
+    assert "comedy" in query.fts_terms
+    assert query.hard_filters.date_from is not None
+    assert query.hard_filters.date_from.date().isoformat() == "2026-05-20"

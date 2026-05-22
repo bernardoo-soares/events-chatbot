@@ -10,10 +10,13 @@ from event_chatbot.core.time import utc_now
 from event_chatbot.db.connection import connect
 from event_chatbot.db.migrations import initialize_database
 from event_chatbot.providers.agno_llm import AgnoIntentExtractor
+from event_chatbot.providers.embeddings import OpenAIEmbeddingProvider
 from event_chatbot.providers.llm import IntentExtractor, RequestIntentClassifier, ResponseRenderer
 from event_chatbot.providers.template_response import TemplateResponseRenderer
 from event_chatbot.repositories.chat_sessions import ChatSessionRepository
+from event_chatbot.repositories.event_embeddings import EventEmbeddingRepository
 from event_chatbot.repositories.events import EventRepository
+from event_chatbot.retrieval.semantic import SemanticScorer
 from event_chatbot.retrieval.service import RetrievalService
 from event_chatbot.services.chat_service import ChatService
 
@@ -41,11 +44,22 @@ def get_retrieval_service(
         settings.default_timezone,
         settings.ingest_default_days,
     )
+    semantic_scorer = None
+    if settings.semantic_ranking_enabled and settings.openai_api_key:
+        semantic_scorer = SemanticScorer(
+            embedding_repository=EventEmbeddingRepository(conn),
+            embedding_provider=OpenAIEmbeddingProvider(
+                api_key=settings.openai_api_key,
+                model=settings.openai_embedding_model,
+                batch_size=settings.embedding_batch_size,
+            ),
+        )
     return RetrievalService(
         event_repository=EventRepository(conn),
         clock=utc_now,
         default_timezone=settings.default_timezone,
         default_days=settings.ingest_default_days,
+        semantic_scorer=semantic_scorer,
     )
 
 

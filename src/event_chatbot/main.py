@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from event_chatbot.api.routers.chat import router as chat_router
 from event_chatbot.api.routers.debug import router as debug_router
+from event_chatbot.api.routers.embeddings import router as embeddings_router
 from event_chatbot.api.routers.events import router as events_router
 from event_chatbot.api.routers.health import router as health_router
 from event_chatbot.api.routers.ingest import router as ingest_router
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
     logger.info("Mounted static web assets path=%s", WEB_DIR)
     app.include_router(health_router)
     app.include_router(debug_router)
+    app.include_router(embeddings_router)
     app.include_router(ingest_router)
     app.include_router(events_router)
     app.include_router(chat_router)

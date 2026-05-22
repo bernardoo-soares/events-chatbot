@@ -12,6 +12,9 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("OPENAI_API_KEY", "OPEN_AI_API_KEY"),
     )
     openai_model: str = "gpt-4o-mini"
+    openai_embedding_model: str = "text-embedding-3-small"
+    semantic_ranking_enabled: bool = True
+    embedding_batch_size: int = 100
     ticketmaster_api_key: str | None = Field(
         default=None,
         validation_alias=AliasChoices("TICKETMASTER_API_KEY", "TICKET_MASTER_CONSUMER_KEY"),

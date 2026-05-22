@@ -3,7 +3,7 @@ from zoneinfo import ZoneInfo
 
 from event_chatbot.retrieval.fts import build_fts_query
 from event_chatbot.types.chat import SessionState
-from event_chatbot.types.query import HardFilters, NormalizedQuery, QuerySpec
+from event_chatbot.types.query import CarryoverField, HardFilters, NormalizedQuery, QuerySpec
 
 ALLOWED_CATEGORIES = {
     "music",
@@ -40,11 +40,12 @@ def normalize_query(
     spec: QuerySpec,
     *,
     previous: SessionState | None,
+    carryover_fields: set[CarryoverField] | None = None,
     now: datetime,
     default_timezone: str,
     default_days: int,
 ) -> NormalizedQuery:
-    merged = _merge_with_previous(spec, previous)
+    merged = _merge_with_previous(spec, previous, carryover_fields or set())
     timezone = ZoneInfo(default_timezone)
     now_local = now.astimezone(timezone)
     date_from, date_to = _normalize_dates(merged, now_local, timezone, default_days)
@@ -78,17 +79,44 @@ def normalize_query(
         fts_terms=_dedupe_terms(fts_terms),
         used_fts=fts_query is not None,
         fts_query=fts_query,
+        semantic_terms=_dedupe_terms([*fts_terms, *category_boosts, *vibe_tags]),
+        carryover_fields=sorted(carryover_fields or set()),
     )
 
 
-def _merge_with_previous(spec: QuerySpec, previous: SessionState | None) -> QuerySpec:
-    if previous is None or previous.current_query is None:
+def _merge_with_previous(
+    spec: QuerySpec,
+    previous: SessionState | None,
+    carryover_fields: set[CarryoverField],
+) -> QuerySpec:
+    if previous is None or previous.current_query is None or not carryover_fields:
         return spec
     prior = previous.current_query
-    data = prior.model_dump()
-    for key, value in spec.model_dump().items():
-        if value not in (None, [], False):
-            data[key] = value
+    data = spec.model_dump()
+    if "city" in carryover_fields and data["city"] is None:
+        data["city"] = prior.city
+    if "date" in carryover_fields:
+        if data["date_text"] is None:
+            data["date_text"] = prior.date_text
+        if data["date_from"] is None:
+            data["date_from"] = prior.date_from
+        if data["date_to"] is None:
+            data["date_to"] = prior.date_to
+        if data["time_of_day"] is None:
+            data["time_of_day"] = prior.time_of_day
+    if "budget" in carryover_fields and data["max_price"] is None:
+        data["max_price"] = prior.max_price
+    if "category" in carryover_fields:
+        if data["raw_category_text"] is None:
+            data["raw_category_text"] = prior.raw_category_text
+        if not data["categories"]:
+            data["categories"] = prior.categories
+        if data["hard_category_only"] is False:
+            data["hard_category_only"] = prior.hard_category_only
+    if "keywords" in carryover_fields and not data["keywords"]:
+        data["keywords"] = prior.keywords
+    if "vibes" in carryover_fields and not data["vibes"]:
+        data["vibes"] = prior.vibes
     return QuerySpec(**data)
 
 

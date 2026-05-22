@@ -19,6 +19,7 @@ def test_initialize_database_creates_expected_tables() -> None:
     assert "raw_events" in table_names
     assert "chat_sessions" in table_names
     assert "chat_messages" in table_names
+    assert "event_embeddings" in table_names
     assert "events_fts" in table_names
 
 

@@ -11,6 +11,7 @@ def rank_candidates(
     candidates: list[EventCandidate],
     query: NormalizedQuery,
     now: datetime,
+    semantic_scores: dict[int, float] | None = None,
 ) -> list[RankedEvent]:
     logger.info(
         "Ranking candidates candidate_count=%s city=%s used_fts=%s",
@@ -20,7 +21,13 @@ def rank_candidates(
     )
     lexical_scores = _lexical_scores(candidates, query)
     ranked = [
-        _rank_candidate(candidate, query, now, lexical_scores[index])
+        _rank_candidate(
+            candidate,
+            query,
+            now,
+            lexical_scores[index],
+            (semantic_scores or {}).get(candidate.id, 0.5),
+        )
         for index, candidate in enumerate(candidates)
     ]
     ranked_sorted = sorted(
@@ -45,13 +52,15 @@ def _rank_candidate(
     query: NormalizedQuery,
     now: datetime,
     lexical_score: float,
+    semantic_score: float,
 ) -> RankedEvent:
     temporal_score = compute_temporal_score(candidate, query, now)
     price_score = compute_price_score(candidate, query)
     tag_overlap_score = compute_tag_overlap_score(candidate, query)
     score = (
-        0.50 * lexical_score
-        + 0.25 * temporal_score
+        0.30 * lexical_score
+        + 0.25 * semantic_score
+        + 0.20 * temporal_score
         + 0.15 * price_score
         + 0.10 * tag_overlap_score
     )
@@ -59,6 +68,7 @@ def _rank_candidate(
         event=candidate,
         score=score,
         lexical_score=lexical_score,
+        semantic_score=semantic_score,
         temporal_score=temporal_score,
         price_score=price_score,
         tag_overlap_score=tag_overlap_score,

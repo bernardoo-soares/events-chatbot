@@ -53,6 +53,19 @@ class BroadLisbonIntentExtractor(IntentExtractor):
         return QuerySpec(city="Lisbon")
 
 
+class ContextAwareIntentExtractor(IntentExtractor):
+    def extract_intent(self, message: str, state: SessionState | None) -> QuerySpec:
+        if message == "first":
+            return QuerySpec(city="Madrid", keywords=["under 25 euros"], max_price=25)
+        if message == "second":
+            assert state is None
+            return QuerySpec(city="Lisbon", vibes=["relaxed"], date_text="this weekend")
+        if message == "tomorrow":
+            assert state is not None
+            return QuerySpec(date_text="tomorrow")
+        raise AssertionError(f"Unexpected message: {message}")
+
+
 def test_chat_endpoint_returns_grounded_results_and_persists_state(tmp_path) -> None:
     conn = connect(str(tmp_path / "chat_api.sqlite"))
     initialize_database(conn)
@@ -368,3 +381,139 @@ def test_chat_endpoint_rejects_city_only_query_spec_without_event_language(tmp_p
     assert "What kind of plan" in body["assistant_message"]
     assert body["results"] == []
     assert body["applied_filters"] == {}
+
+
+def test_chat_endpoint_new_search_does_not_carry_stale_previous_filters(tmp_path) -> None:
+    conn = connect(str(tmp_path / "chat_context_reset.sqlite"))
+    initialize_database(conn)
+    now = datetime(2026, 5, 19, 12, 0, tzinfo=UTC)
+    event_repo = EventRepository(conn)
+    event_repo.upsert_many(
+        [
+            SourceEvent(
+                source="ticketmaster",
+                source_event_id="madrid-1",
+                title="Madrid Budget Plan",
+                city="Madrid",
+                start_at=now + timedelta(days=1),
+                status="onsale",
+            ),
+            SourceEvent(
+                source="agendalx",
+                source_event_id="lisbon-1",
+                title="Relaxed Lisbon Weekend",
+                city="Lisbon",
+                start_at=now + timedelta(days=4),
+                status="scheduled",
+            ),
+        ],
+        now,
+    )
+    conn.commit()
+    service = ChatService(
+        conn=conn,
+        sessions=ChatSessionRepository(conn),
+        request_intent_classifier=StaticRequestIntentClassifier(
+            RequestIntent(
+                primary_intent="activity_plan",
+                conversation_role="new_search",
+                confidence=0.95,
+            )
+        ),
+        intent_extractor=ContextAwareIntentExtractor(),
+        response_renderer=FakeResponseRenderer(),
+        retrieval=RetrievalService(
+            event_repository=event_repo,
+            clock=lambda: now,
+            default_timezone="Europe/Lisbon",
+            default_days=30,
+        ),
+    )
+    app = create_app()
+    app.dependency_overrides[get_chat_service] = lambda: service
+    client = TestClient(app)
+
+    first = client.post("/chat", json={"session_id": "session-reset", "message": "first"})
+    second = client.post("/chat", json={"session_id": "session-reset", "message": "second"})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    body = second.json()
+    assert body["applied_filters"]["hard_filters"]["city"] == "Lisbon"
+    assert body["applied_filters"]["hard_filters"]["max_price"] is None
+    assert "under 25 euros" not in body["applied_filters"]["fts_terms"]
+    state = ChatSessionRepository(conn).get_or_create("session-reset", now)
+    assert state.current_query is not None
+    assert state.current_query.city == "Lisbon"
+    assert state.current_query.max_price is None
+    assert state.current_query.keywords == []
+
+
+def test_chat_endpoint_follow_up_carries_declared_previous_fields(tmp_path) -> None:
+    conn = connect(str(tmp_path / "chat_context_followup.sqlite"))
+    initialize_database(conn)
+    now = datetime(2026, 5, 19, 12, 0, tzinfo=UTC)
+    event_repo = EventRepository(conn)
+    event_repo.upsert_many(
+        [
+            SourceEvent(
+                source="ticketmaster",
+                source_event_id="madrid-comedy",
+                title="Madrid Comedy Tomorrow",
+                city="Madrid",
+                category="comedy",
+                start_at=now + timedelta(days=1),
+                status="onsale",
+            )
+        ],
+        now,
+    )
+    conn.commit()
+    intents = [
+        RequestIntent(
+            primary_intent="activity_plan",
+            conversation_role="new_search",
+            confidence=0.95,
+        ),
+        RequestIntent(
+            primary_intent="activity_plan",
+            conversation_role="follow_up_refinement",
+            context_carryover=["city", "budget", "keywords"],
+            confidence=0.95,
+        ),
+    ]
+
+    class SequenceRequestIntentClassifier(RequestIntentClassifier):
+        def classify_request_intent(
+            self,
+            message: str,
+            state: SessionState | None,
+        ) -> RequestIntent:
+            return intents.pop(0)
+
+    service = ChatService(
+        conn=conn,
+        sessions=ChatSessionRepository(conn),
+        request_intent_classifier=SequenceRequestIntentClassifier(),
+        intent_extractor=ContextAwareIntentExtractor(),
+        response_renderer=FakeResponseRenderer(),
+        retrieval=RetrievalService(
+            event_repository=event_repo,
+            clock=lambda: now,
+            default_timezone="Europe/Lisbon",
+            default_days=30,
+        ),
+    )
+    app = create_app()
+    app.dependency_overrides[get_chat_service] = lambda: service
+    client = TestClient(app)
+
+    first = client.post("/chat", json={"session_id": "session-followup", "message": "first"})
+    second = client.post("/chat", json={"session_id": "session-followup", "message": "tomorrow"})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    body = second.json()
+    assert body["applied_filters"]["hard_filters"]["city"] == "Madrid"
+    assert body["applied_filters"]["hard_filters"]["max_price"] == 25
+    assert "under 25 euros" in body["applied_filters"]["fts_terms"]

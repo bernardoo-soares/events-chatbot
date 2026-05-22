@@ -52,6 +52,15 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     FOREIGN KEY (session_id) REFERENCES chat_sessions(session_id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS event_embeddings (
+    event_id INTEGER PRIMARY KEY,
+    model TEXT NOT NULL,
+    embedding_json TEXT NOT NULL,
+    embedded_text_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS events_fts USING fts5(
     title,
     description,
@@ -84,6 +93,9 @@ CREATE INDEX IF NOT EXISTS idx_raw_events_source_event
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session_created
     ON chat_messages (session_id, created_at);
 
+CREATE INDEX IF NOT EXISTS idx_event_embeddings_model
+    ON event_embeddings (model);
+
 CREATE TRIGGER IF NOT EXISTS events_after_insert_sync_fts
 AFTER INSERT ON events
 BEGIN
@@ -107,4 +119,3 @@ BEGIN
     INSERT INTO events_fts(rowid, title, description, city, venue_name, category, subcategory)
     VALUES (new.id, new.title, new.description, new.city, new.venue_name, new.category, new.subcategory);
 END;
-
