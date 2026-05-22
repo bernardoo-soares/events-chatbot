@@ -42,7 +42,6 @@ Core docs:
 - `docs/architecture.md`
 - `docs/technical_plan.md`
 - `docs/implementation_plan.md`
-- `docs/logs/`
 
 ## Requirements
 
