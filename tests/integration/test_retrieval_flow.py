@@ -51,7 +51,7 @@ def test_retrieval_service_normalizes_searches_and_ranks(tmp_path) -> None:
 
     query = service.normalize(
         QuerySpec(
-            city="Lisbon",
+            city="Lisboa",
             keywords=["jazz"],
             date_text="tonight",
             max_price=30,

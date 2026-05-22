@@ -64,6 +64,21 @@ def test_default_status_filter_includes_scheduled_events() -> None:
     assert query.hard_filters.statuses == ["onsale", "scheduled", "unknown"]
 
 
+def test_city_aliases_normalize_portuguese_city_names_to_database_values() -> None:
+    query = normalize_query(
+        QuerySpec(city=" Lisboa "),
+        previous=None,
+        now=datetime(2026, 5, 19, 12, 0, tzinfo=UTC),
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+    )
+
+    assert query.hard_filters.city == "Lisbon"
+    assert query.city_slug == "lisbon"
+    assert "Lisbon" in query.fts_terms
+    assert "Lisboa" not in query.fts_terms
+
+
 def test_category_aliases_are_soft_boosts_not_fts_requirements() -> None:
     query = normalize_query(
         QuerySpec(categories=["art", "theater", "food", "festival"]),

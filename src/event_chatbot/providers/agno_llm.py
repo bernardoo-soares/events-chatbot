@@ -57,6 +57,8 @@ REQUEST_INTENT_INSTRUCTIONS = [
     "Weather-only requests should be weather with wants_real_world_activity=false.",
     "Weather plus 'what can I do' or 'events if it rains' should set "
     "wants_real_world_activity=true.",
+    "Normalize known city names to the database spelling when extracting city: Lisboa -> Lisbon, "
+    "Madri -> Madrid, Paris stays Paris.",
     "Example: 'What is the weather tomorrow?' -> "
     '{"primary_intent":"weather","conversation_role":"new_search","context_carryover":[],'
     '"is_time_bound":true,'
@@ -119,6 +121,8 @@ INTENT_INSTRUCTIONS = [
     "For broad upcoming ranges like 'next 30 days', leave date fields empty.",
     "Set hard_category_only=true only when the user explicitly says only/just/no other categories.",
     "Set needs_clarification=true only when retrieval cannot proceed safely.",
+    "Normalize known city names to the database spelling: Lisboa -> Lisbon, Madri -> Madrid, "
+    "Paris stays Paris.",
 ]
 
 RESPONSE_INSTRUCTIONS = [

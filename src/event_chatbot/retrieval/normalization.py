@@ -1,3 +1,4 @@
+import unicodedata
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -35,6 +36,14 @@ VIBE_EXPANSIONS = {
     "party": ["party", "dj", "nightlife"],
 }
 
+CITY_ALIASES = {
+    "lisboa": "Lisbon",
+    "lisbon": "Lisbon",
+    "madrid": "Madrid",
+    "madri": "Madrid",
+    "paris": "Paris",
+}
+
 
 def normalize_query(
     spec: QuerySpec,
@@ -49,7 +58,7 @@ def normalize_query(
     timezone = ZoneInfo(default_timezone)
     now_local = now.astimezone(timezone)
     date_from, date_to = _normalize_dates(merged, now_local, timezone, default_days)
-    city = _clean_text(merged.city)
+    city = _normalize_city(merged.city)
     category_boosts, hard_category_filters, category_terms = _normalize_categories(merged)
     vibe_tags, vibe_terms = _normalize_vibes(merged.vibes)
     keyword_terms = [_clean_text(keyword) for keyword in merged.keywords]
@@ -240,6 +249,19 @@ def _clean_text(value: str | None) -> str | None:
         return None
     cleaned = " ".join(value.strip().split())
     return cleaned or None
+
+
+def _normalize_city(value: str | None) -> str | None:
+    cleaned = _clean_text(value)
+    if cleaned is None:
+        return None
+    return CITY_ALIASES.get(_alias_key(cleaned), cleaned)
+
+
+def _alias_key(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value)
+    ascii_text = "".join(char for char in normalized if not unicodedata.combining(char))
+    return " ".join(ascii_text.casefold().split())
 
 
 def _slug(value: str | None) -> str | None:
