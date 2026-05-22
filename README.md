@@ -2,7 +2,26 @@
 
 Grounded local event-discovery chatbot API built with FastAPI, SQLite FTS5, Ticketmaster/AgendaLX ingestion, and Agno-based LLM orchestration.
 
-The LLM does not invent recommendations. Event recommendations come from the local SQLite database.
+The LLM does not invent recommendations. Event recommendations come from real rows in the local SQLite database, then deterministic retrieval, semantic ranking, and duplicate suppression decide what is shown.
+
+## Live Demo
+
+Use the deployed app here:
+
+```text
+https://web-production-53075.up.railway.app/
+```
+
+Try prompts like:
+
+```text
+What can I do in Lisbon this weekend?
+Give me a place to drink wine today in Lisboa.
+Comedy in Madrid under 25 euros.
+I want something relaxed in Lisbon tomorrow.
+```
+
+Portuguese city aliases such as `Lisboa` are normalized to the database city name `Lisbon` before search.
 
 ## Architecture
 
@@ -10,10 +29,13 @@ The LLM does not invent recommendations. Event recommendations come from the loc
 Ticketmaster Discovery API / AgendaLX API
 -> ETL ingestion
 -> SQLite events database + FTS5 index
--> deterministic retrieval and ranking
--> Agno intent extraction and grounded response rendering
--> FastAPI API response
+-> event embeddings
+-> Agno request-intent + QuerySpec extraction
+-> deterministic filters, retrieval, semantic ranking, and dedupe
+-> FastAPI response + frontend cards
 ```
+
+The LLM extracts structured intent only. It does not write SQL, choose final recommendations, or create event details.
 
 Core docs:
 
@@ -29,7 +51,7 @@ Core docs:
 - AgendaLX ingestion does not require an API key
 - OpenAI API key for chat through Agno
 
-## Setup
+## Local Setup
 
 ```bash
 python -m pip install -e .[dev]
@@ -54,21 +76,7 @@ DEFAULT_TIMEZONE=Europe/Lisbon
 INGEST_DEFAULT_DAYS=30
 ```
 
-## Semantic Ranking
-
-Semantic ranking uses OpenAI embeddings over stored event rows. Apply/backfill embeddings after
-ingesting or changing the demo database:
-
-```bash
-curl -X POST http://127.0.0.1:8000/embeddings/backfill ^
-  -H "Content-Type: application/json" ^
-  -d "{\"limit\":1200}"
-```
-
-Retrieval still uses deterministic city/date/status/price filters first. Embeddings only influence
-the final ranking score.
-
-## Run
+Run the app:
 
 ```bash
 uvicorn event_chatbot.main:app --reload
@@ -78,6 +86,54 @@ Web app:
 
 ```text
 http://127.0.0.1:8000
+```
+
+Health check:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+## Chat API
+
+```bash
+curl -X POST http://127.0.0.1:8000/chat ^
+  -H "Content-Type: application/json" ^
+  -d "{\"session_id\":\"demo\",\"message\":\"I want live jazz in Lisbon tonight under 30 euros\"}"
+```
+
+The same endpoint works against the deployed app:
+
+```bash
+curl -X POST https://web-production-53075.up.railway.app/chat ^
+  -H "Content-Type: application/json" ^
+  -d "{\"session_id\":\"demo\",\"message\":\"Give me a place to drink wine today in Lisboa\"}"
+```
+
+Responses include assistant text plus structured `results`. The frontend event cards are rendered from `results`, not from free-form prose.
+
+## Deterministic Search API
+
+```bash
+curl "http://127.0.0.1:8000/events/search?city=Lisbon&q=jazz&limit=5"
+```
+
+Deployed:
+
+```bash
+curl "https://web-production-53075.up.railway.app/events/search?city=Lisbon&q=jazz&limit=5"
+```
+
+## Semantic Ranking
+
+Semantic ranking uses OpenAI embeddings over stored event rows. Retrieval still applies deterministic city/date/status/price filters first; embeddings only influence the final ranking score.
+
+Backfill embeddings after ingesting new events or changing the demo database:
+
+```bash
+curl -X POST http://127.0.0.1:8000/embeddings/backfill ^
+  -H "Content-Type: application/json" ^
+  -d "{\"limit\":1200}"
 ```
 
 ## Railway Deployment
@@ -113,13 +169,13 @@ DEFAULT_TIMEZONE=Europe/Lisbon
 INGEST_DEFAULT_DAYS=30
 ```
 
-The deployed demo can chat and search using the committed DB immediately. New ingestion is optional.
-
-Health check:
+Production health check:
 
 ```bash
-curl http://127.0.0.1:8000/health
+curl https://web-production-53075.up.railway.app/health
 ```
+
+The deployed demo can chat and search using the committed DB immediately. New ingestion is optional.
 
 ## Ingest Events
 
@@ -135,20 +191,6 @@ AgendaLX Lisbon ingestion:
 curl -X POST http://127.0.0.1:8000/ingest ^
   -H "Content-Type: application/json" ^
   -d "{\"source\":\"agendalx\",\"city\":\"Lisbon\",\"size\":300}"
-```
-
-## Deterministic Search
-
-```bash
-curl "http://127.0.0.1:8000/events/search?city=Lisbon&q=jazz&limit=5"
-```
-
-## Chat
-
-```bash
-curl -X POST http://127.0.0.1:8000/chat ^
-  -H "Content-Type: application/json" ^
-  -d "{\"session_id\":\"demo\",\"message\":\"I want live jazz in Lisbon tonight under 30 euros\"}"
 ```
 
 ## Tests
