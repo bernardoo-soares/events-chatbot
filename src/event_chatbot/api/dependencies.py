@@ -40,7 +40,8 @@ def get_retrieval_service(
     conn: Annotated[sqlite3.Connection, Depends(get_db_connection)],
 ) -> RetrievalService:
     logger.debug(
-        "Building retrieval service default_timezone=%s default_days=%s",
+        "Building retrieval service default_city=%s default_timezone=%s default_days=%s",
+        settings.default_city,
         settings.default_timezone,
         settings.ingest_default_days,
     )
@@ -59,6 +60,7 @@ def get_retrieval_service(
         clock=utc_now,
         default_timezone=settings.default_timezone,
         default_days=settings.ingest_default_days,
+        default_city=settings.default_city,
         semantic_scorer=semantic_scorer,
     )
 

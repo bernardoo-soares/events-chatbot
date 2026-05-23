@@ -1,4 +1,5 @@
 import unicodedata
+from calendar import monthrange
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
@@ -53,12 +54,13 @@ def normalize_query(
     now: datetime,
     default_timezone: str,
     default_days: int,
+    default_city: str | None = None,
 ) -> NormalizedQuery:
     merged = _merge_with_previous(spec, previous, carryover_fields or set())
     timezone = ZoneInfo(default_timezone)
     now_local = now.astimezone(timezone)
     date_from, date_to = _normalize_dates(merged, now_local, timezone, default_days)
-    city = _normalize_city(merged.city)
+    city = _normalize_city(merged.city) or _normalize_city(default_city)
     category_boosts, hard_category_filters, category_terms = _normalize_categories(merged)
     vibe_tags, vibe_terms = _normalize_vibes(merged.vibes)
     keyword_terms = [_clean_text(keyword) for keyword in merged.keywords]
@@ -111,6 +113,12 @@ def _merge_with_previous(
             data["date_from"] = prior.date_from
         if data["date_to"] is None:
             data["date_to"] = prior.date_to
+        if data["relative_date_amount"] is None:
+            data["relative_date_amount"] = prior.relative_date_amount
+        if data["relative_date_unit"] is None:
+            data["relative_date_unit"] = prior.relative_date_unit
+        if data["date_window_days"] is None:
+            data["date_window_days"] = prior.date_window_days
         if data["time_of_day"] is None:
             data["time_of_day"] = prior.time_of_day
     if "budget" in carryover_fields and data["max_price"] is None:
@@ -135,6 +143,20 @@ def _normalize_dates(
     timezone: ZoneInfo,
     default_days: int,
 ) -> tuple[datetime, datetime]:
+    if spec.date_from or spec.date_to:
+        date_from = _parse_date_or_datetime(spec.date_from, timezone) if spec.date_from else now
+        date_to = (
+            _parse_date_or_datetime(spec.date_to, timezone, end_of_day=True)
+            if spec.date_to
+            else date_from + timedelta(days=default_days)
+        )
+        if spec.time_of_day:
+            return _apply_time_of_day(date_from.date(), spec.time_of_day, timezone)
+        return _prevent_past_only_window(date_from, date_to, now, default_days)
+
+    if spec.relative_date_amount is not None and spec.relative_date_unit is not None:
+        return _normalize_relative_date(spec, now, timezone)
+
     if spec.date_text:
         normalized_text = spec.date_text.strip().casefold()
         if normalized_text == "tonight":
@@ -149,21 +171,44 @@ def _normalize_dates(
             sunday = saturday + timedelta(days=1)
             return _at(saturday, time(0, 0), timezone), _at(sunday, time(23, 59, 59), timezone)
 
-    if spec.date_from or spec.date_to:
-        date_from = _parse_date_or_datetime(spec.date_from, timezone) if spec.date_from else now
-        date_to = (
-            _parse_date_or_datetime(spec.date_to, timezone, end_of_day=True)
-            if spec.date_to
-            else date_from + timedelta(days=default_days)
-        )
-        if spec.time_of_day:
-            return _apply_time_of_day(date_from.date(), spec.time_of_day, timezone)
-        return _prevent_past_only_window(date_from, date_to, now, default_days)
-
     if spec.time_of_day:
         return _apply_time_of_day(now.date(), spec.time_of_day, timezone)
 
     return now, now + timedelta(days=default_days)
+
+
+def _normalize_relative_date(
+    spec: QuerySpec,
+    now: datetime,
+    timezone: ZoneInfo,
+) -> tuple[datetime, datetime]:
+    amount = spec.relative_date_amount
+    unit = spec.relative_date_unit
+    if amount is None or unit is None:
+        raise ValueError("Relative date amount and unit must both be set")
+    if unit == "day":
+        anchor = now.date() + timedelta(days=amount)
+    elif unit == "week":
+        anchor = now.date() + timedelta(weeks=amount)
+    elif unit == "month":
+        anchor = _add_months(now.date(), amount)
+    else:
+        raise ValueError(f"Unsupported relative_date_unit: {unit}")
+
+    window_days = spec.date_window_days if spec.date_window_days is not None else 4
+    date_from = _at(anchor, time.min, timezone)
+    date_to = _at(anchor + timedelta(days=window_days), time(23, 59, 59), timezone)
+    if spec.time_of_day:
+        return _apply_time_of_day(anchor, spec.time_of_day, timezone)
+    return date_from, date_to
+
+
+def _add_months(value: date, months: int) -> date:
+    month_index = value.month - 1 + months
+    year = value.year + month_index // 12
+    month = month_index % 12 + 1
+    day = min(value.day, monthrange(year, month)[1])
+    return date(year, month, day)
 
 
 def _prevent_past_only_window(

@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from event_chatbot.types.events import EventCandidate
 
 AllowedTimeOfDay = Literal["morning", "afternoon", "evening", "night"]
+RelativeDateUnit = Literal["day", "week", "month"]
 PrimaryIntent = Literal[
     "event_search",
     "activity_plan",
@@ -50,6 +51,9 @@ class QuerySpec(BaseModel):
     date_text: str | None = None
     date_from: str | None = None
     date_to: str | None = None
+    relative_date_amount: int | None = Field(default=None, ge=1)
+    relative_date_unit: RelativeDateUnit | None = None
+    date_window_days: int | None = Field(default=None, ge=0)
     time_of_day: AllowedTimeOfDay | None = None
     max_price: float | None = None
     radius_km: float | None = None

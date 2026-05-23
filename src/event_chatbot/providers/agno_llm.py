@@ -118,6 +118,14 @@ INTENT_INSTRUCTIONS = [
     "Only set categories when the user names a specific event type.",
     "Extract explicit city names from the message when present.",
     "Do not convert relative date phrases to guessed calendar dates.",
+    "For relative dates like 'in one month', 'next month', 'in two weeks', or "
+    "'in 10 days', keep date_text as the original phrase and set "
+    "relative_date_amount plus relative_date_unit. Use date_window_days=4 unless the user "
+    "asks for a different span.",
+    "For 'next month', use relative_date_amount=1 and relative_date_unit='month'.",
+    "For 'in one month', use relative_date_amount=1 and relative_date_unit='month'.",
+    "For 'in two weeks', use relative_date_amount=2 and relative_date_unit='week'.",
+    "For 'in 10 days', use relative_date_amount=10 and relative_date_unit='day'.",
     "For broad upcoming ranges like 'next 30 days', leave date fields empty.",
     "Set hard_category_only=true only when the user explicitly says only/just/no other categories.",
     "Set needs_clarification=true only when retrieval cannot proceed safely.",

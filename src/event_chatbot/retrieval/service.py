@@ -21,12 +21,14 @@ class RetrievalService:
         clock: Clock,
         default_timezone: str,
         default_days: int,
+        default_city: str | None = None,
         semantic_scorer: SemanticScorer | None = None,
     ):
         self.event_repository = event_repository
         self.clock = clock
         self.default_timezone = default_timezone
         self.default_days = default_days
+        self.default_city = default_city
         self.semantic_scorer = semantic_scorer
 
     def normalize(
@@ -36,11 +38,17 @@ class RetrievalService:
         carryover_fields: set[CarryoverField] | None = None,
     ) -> NormalizedQuery:
         logger.info(
-            "Normalizing query city=%s categories=%s keywords=%s date_text=%s previous_state=%s",
+            "Normalizing query city=%s categories=%s keywords=%s date_text=%s "
+            "relative_date_amount=%s relative_date_unit=%s date_window_days=%s "
+            "default_city=%s previous_state=%s",
             spec.city,
             spec.categories,
             spec.keywords,
             spec.date_text,
+            spec.relative_date_amount,
+            spec.relative_date_unit,
+            spec.date_window_days,
+            self.default_city,
             previous is not None,
         )
         normalized = normalize_query(
@@ -50,6 +58,7 @@ class RetrievalService:
             now=self.clock(),
             default_timezone=self.default_timezone,
             default_days=self.default_days,
+            default_city=self.default_city,
         )
         logger.info(
             "Query normalized city=%s category_boosts=%s fts_terms=%s "

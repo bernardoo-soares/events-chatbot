@@ -124,11 +124,16 @@ class ChatService:
                 raise HTTPException(status_code=503, detail=str(exc)) from exc
             logger.info(
                 "Chat intent extracted session_id=%s city=%s categories=%s "
-                "keywords=%s needs_clarification=%s",
+                "keywords=%s date_text=%s relative_date_amount=%s "
+                "relative_date_unit=%s date_window_days=%s needs_clarification=%s",
                 request.session_id,
                 spec.city,
                 spec.categories,
                 spec.keywords,
+                spec.date_text,
+                spec.relative_date_amount,
+                spec.relative_date_unit,
+                spec.date_window_days,
                 spec.needs_clarification,
             )
             spec = _enrich_spec_from_request_intent(spec, request_intent)

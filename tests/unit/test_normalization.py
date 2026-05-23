@@ -79,6 +79,37 @@ def test_city_aliases_normalize_portuguese_city_names_to_database_values() -> No
     assert "Lisboa" not in query.fts_terms
 
 
+def test_missing_city_uses_default_city() -> None:
+    query = normalize_query(
+        QuerySpec(keywords=["jazz"]),
+        previous=None,
+        now=datetime(2026, 5, 19, 12, 0, tzinfo=UTC),
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+        default_city="Lisbon",
+    )
+
+    assert query.hard_filters.city == "Lisbon"
+    assert query.city_slug == "lisbon"
+    assert "Lisbon" in query.fts_terms
+
+
+def test_explicit_city_overrides_default_city() -> None:
+    query = normalize_query(
+        QuerySpec(city="Madrid"),
+        previous=None,
+        now=datetime(2026, 5, 19, 12, 0, tzinfo=UTC),
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+        default_city="Lisbon",
+    )
+
+    assert query.hard_filters.city == "Madrid"
+    assert query.city_slug == "madrid"
+    assert "Madrid" in query.fts_terms
+    assert "Lisbon" not in query.fts_terms
+
+
 def test_category_aliases_are_soft_boosts_not_fts_requirements() -> None:
     query = normalize_query(
         QuerySpec(categories=["art", "theater", "food", "festival"]),
@@ -106,6 +137,85 @@ def test_past_only_date_window_falls_back_to_default_upcoming_window() -> None:
 
     assert query.hard_filters.date_from == now
     assert query.hard_filters.date_to == datetime(2026, 6, 18, 12, 0, tzinfo=UTC)
+
+
+def test_relative_month_targets_calendar_month_with_small_window() -> None:
+    now = datetime(2026, 5, 23, 13, 53, tzinfo=UTC)
+
+    query = normalize_query(
+        QuerySpec(
+            city="Madrid",
+            date_text="in one month",
+            relative_date_amount=1,
+            relative_date_unit="month",
+            date_window_days=4,
+        ),
+        previous=None,
+        now=now,
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+    )
+
+    assert query.hard_filters.date_from is not None
+    assert query.hard_filters.date_to is not None
+    assert query.hard_filters.date_from.date().isoformat() == "2026-06-23"
+    assert query.hard_filters.date_from.hour == 0
+    assert query.hard_filters.date_to.date().isoformat() == "2026-06-27"
+    assert query.hard_filters.date_to.hour == 23
+
+
+def test_relative_week_targets_future_week_with_default_small_window() -> None:
+    now = datetime(2026, 5, 23, 13, 53, tzinfo=UTC)
+
+    query = normalize_query(
+        QuerySpec(date_text="in two weeks", relative_date_amount=2, relative_date_unit="week"),
+        previous=None,
+        now=now,
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+    )
+
+    assert query.hard_filters.date_from is not None
+    assert query.hard_filters.date_to is not None
+    assert query.hard_filters.date_from.date().isoformat() == "2026-06-06"
+    assert query.hard_filters.date_to.date().isoformat() == "2026-06-10"
+
+
+def test_relative_days_target_future_day_with_zero_day_window() -> None:
+    now = datetime(2026, 5, 23, 13, 53, tzinfo=UTC)
+
+    query = normalize_query(
+        QuerySpec(
+            date_text="in 10 days",
+            relative_date_amount=10,
+            relative_date_unit="day",
+            date_window_days=0,
+        ),
+        previous=None,
+        now=now,
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+    )
+
+    assert query.hard_filters.date_from is not None
+    assert query.hard_filters.date_to is not None
+    assert query.hard_filters.date_from.date().isoformat() == "2026-06-02"
+    assert query.hard_filters.date_to.date().isoformat() == "2026-06-02"
+
+
+def test_relative_month_clamps_to_last_day_of_shorter_month() -> None:
+    now = datetime(2026, 1, 31, 12, 0, tzinfo=UTC)
+
+    query = normalize_query(
+        QuerySpec(date_text="in one month", relative_date_amount=1, relative_date_unit="month"),
+        previous=None,
+        now=now,
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+    )
+
+    assert query.hard_filters.date_from is not None
+    assert query.hard_filters.date_from.date().isoformat() == "2026-02-28"
 
 
 def test_normalize_query_does_not_merge_previous_without_carryover_fields() -> None:
