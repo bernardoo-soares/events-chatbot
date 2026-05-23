@@ -44,3 +44,15 @@ def test_llm_health_reports_missing_key() -> None:
     body = response.json()
     assert body["openai_key_loaded"] is False
     assert body["openai_connection"] == "missing_key"
+    assert "openai_key_prefix" not in body
+    assert "openai_key_length" not in body
+
+
+def test_llm_health_is_disabled_in_production() -> None:
+    app = create_app()
+    app.dependency_overrides[get_settings] = lambda: Settings(app_env="production", _env_file=None)
+    client = TestClient(app)
+
+    response = client.get("/health/llm")
+
+    assert response.status_code == 404

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from event_chatbot.api.dependencies import SettingsDep, get_db_connection
+from event_chatbot.api.guards import require_non_production
 from event_chatbot.core.time import utc_now
 from event_chatbot.providers.embeddings import OpenAIEmbeddingProvider
 from event_chatbot.repositories.event_embeddings import EventEmbeddingRepository
@@ -25,6 +26,7 @@ def backfill_embeddings(
     settings: SettingsDep,
     conn: Annotated[sqlite3.Connection, Depends(get_db_connection)],
 ) -> EmbeddingBackfillSummary:
+    require_non_production(settings, "Embedding backfill")
     if not settings.openai_api_key:
         return EmbeddingBackfillSummary(
             model=settings.openai_embedding_model,

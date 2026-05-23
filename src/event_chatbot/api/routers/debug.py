@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from openai import OpenAI
 
 from event_chatbot.api.dependencies import SettingsDep
+from event_chatbot.api.guards import require_non_production
 from event_chatbot.core.logging import get_logger
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -13,6 +14,7 @@ logger = get_logger(__name__)
 
 @router.get("/llm")
 def llm_health(settings: SettingsDep) -> dict:
+    require_non_production(settings, "LLM health diagnostics")
     logger.info(
         "Checking LLM health model=%s key_loaded=%s",
         settings.openai_model,
@@ -20,8 +22,6 @@ def llm_health(settings: SettingsDep) -> dict:
     )
     result = {
         "openai_key_loaded": bool(settings.openai_api_key),
-        "openai_key_length": len(settings.openai_api_key or ""),
-        "openai_key_prefix": _safe_key_prefix(settings.openai_api_key),
         "openai_model": settings.openai_model,
         "openai_connection": "not_checked",
         "error_type": None,
@@ -100,9 +100,3 @@ def db_health(settings: SettingsDep) -> dict:
         result["error_message"] = str(exc)
         logger.exception("DB health check failed path=%s", settings.database_path)
     return result
-
-
-def _safe_key_prefix(value: str | None) -> str | None:
-    if not value:
-        return None
-    return f"{value[:7]}..."
