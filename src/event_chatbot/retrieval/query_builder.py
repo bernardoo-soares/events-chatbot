@@ -17,7 +17,7 @@ def build_candidate_query(query: NormalizedQuery) -> tuple[str, list[object]]:
         clauses.append("e.city = ?")
         params.append(filters.city)
     if filters.date_from:
-        clauses.append("e.start_at >= ?")
+        clauses.append("COALESCE(e.end_at, e.start_at) >= ?")
         params.append(_datetime_to_text(filters.date_from))
     if filters.date_to:
         clauses.append("e.start_at <= ?")

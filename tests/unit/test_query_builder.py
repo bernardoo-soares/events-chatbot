@@ -24,5 +24,5 @@ def test_build_candidate_query_uses_hard_filters_and_fts() -> None:
     assert "JOIN events_fts" in sql
     assert "events_fts MATCH ?" in sql
     assert "e.city = ?" in sql
+    assert "COALESCE(e.end_at, e.start_at) >= ?" in sql
     assert params[-2:] == ["jazz", 50]
-

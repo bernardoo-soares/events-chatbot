@@ -128,3 +128,60 @@ def test_retrieval_service_dedupes_repeated_event_titles_before_limit(tmp_path) 
     titles = [result.event.title for result in results]
     assert len(titles) == len(set(titles))
     assert set(titles) == {"La Otra Movida Comedy", "Madrid Stand-Up Night"}
+
+
+def test_retrieval_service_includes_ongoing_events_but_excludes_fully_past_events(tmp_path) -> None:
+    conn = connect(str(tmp_path / "retrieval_ongoing.sqlite"))
+    initialize_database(conn)
+    repo = EventRepository(conn)
+    now = datetime(2026, 5, 19, 12, 0, tzinfo=UTC)
+    service = RetrievalService(
+        event_repository=repo,
+        clock=lambda: now,
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+    )
+    with transaction(conn):
+        repo.upsert_many(
+            [
+                SourceEvent(
+                    source="agendalx",
+                    source_event_id="ongoing-1",
+                    title="Ongoing Lisbon Exhibition",
+                    city="Lisbon",
+                    category="arts",
+                    start_at=now - timedelta(days=2),
+                    end_at=now + timedelta(days=2),
+                    status="scheduled",
+                ),
+                SourceEvent(
+                    source="agendalx",
+                    source_event_id="past-1",
+                    title="Past Lisbon Exhibition",
+                    city="Lisbon",
+                    category="arts",
+                    start_at=now - timedelta(days=5),
+                    end_at=now - timedelta(days=1),
+                    status="scheduled",
+                ),
+                SourceEvent(
+                    source="agendalx",
+                    source_event_id="future-1",
+                    title="Future Lisbon Exhibition",
+                    city="Lisbon",
+                    category="arts",
+                    start_at=now + timedelta(days=1),
+                    status="scheduled",
+                ),
+            ],
+            now,
+        )
+
+    query = service.normalize(QuerySpec(city="Lisbon", keywords=["exhibition"]))
+    query.limit = 10
+    results = service.search(query)
+
+    titles = {result.event.title for result in results}
+    assert "Ongoing Lisbon Exhibition" in titles
+    assert "Future Lisbon Exhibition" in titles
+    assert "Past Lisbon Exhibition" not in titles
