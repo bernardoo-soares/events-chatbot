@@ -224,8 +224,11 @@ def has_meaningful_query_signal(spec: QuerySpec) -> bool:
             spec.keywords,
             spec.vibes,
             spec.date_text,
+            spec.date_preset,
+            spec.date_day is not None and spec.date_month is not None,
             spec.date_from,
             spec.date_to,
+            spec.relative_date_amount is not None and spec.relative_date_unit is not None,
             spec.time_of_day,
             spec.max_price is not None,
         ]

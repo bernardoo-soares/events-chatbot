@@ -39,12 +39,17 @@ class RetrievalService:
     ) -> NormalizedQuery:
         logger.info(
             "Normalizing query city=%s categories=%s keywords=%s date_text=%s "
+            "date_preset=%s date_day=%s date_month=%s date_year=%s "
             "relative_date_amount=%s relative_date_unit=%s date_window_days=%s "
             "default_city=%s previous_state=%s",
             spec.city,
             spec.categories,
             spec.keywords,
             spec.date_text,
+            spec.date_preset,
+            spec.date_day,
+            spec.date_month,
+            spec.date_year,
             spec.relative_date_amount,
             spec.relative_date_unit,
             spec.date_window_days,

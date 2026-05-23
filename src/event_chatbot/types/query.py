@@ -7,6 +7,7 @@ from event_chatbot.types.events import EventCandidate
 
 AllowedTimeOfDay = Literal["morning", "afternoon", "evening", "night"]
 RelativeDateUnit = Literal["day", "week", "month"]
+DatePreset = Literal["today", "tonight", "tomorrow", "this_weekend", "this_week", "next_week"]
 PrimaryIntent = Literal[
     "event_search",
     "activity_plan",
@@ -49,6 +50,10 @@ class QuerySpec(BaseModel):
     keywords: list[str] = Field(default_factory=list)
     vibes: list[str] = Field(default_factory=list)
     date_text: str | None = None
+    date_preset: DatePreset | None = None
+    date_day: int | None = Field(default=None, ge=1, le=31)
+    date_month: int | None = Field(default=None, ge=1, le=12)
+    date_year: int | None = Field(default=None, ge=1900, le=2100)
     date_from: str | None = None
     date_to: str | None = None
     relative_date_amount: int | None = Field(default=None, ge=1)

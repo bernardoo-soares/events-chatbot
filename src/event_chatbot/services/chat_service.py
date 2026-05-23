@@ -27,6 +27,10 @@ from event_chatbot.types.chat import ChatRequest, ChatResponse
 from event_chatbot.types.query import QuerySpec, RequestIntent
 
 MAX_CHAT_RESULTS = 5
+DATE_CLARIFICATION_RESPONSE = (
+    "I understood you mentioned a date, but I could not parse it safely. "
+    "Which date should I search for?"
+)
 logger = get_logger(__name__)
 
 
@@ -124,13 +128,18 @@ class ChatService:
                 raise HTTPException(status_code=503, detail=str(exc)) from exc
             logger.info(
                 "Chat intent extracted session_id=%s city=%s categories=%s "
-                "keywords=%s date_text=%s relative_date_amount=%s "
-                "relative_date_unit=%s date_window_days=%s needs_clarification=%s",
+                "keywords=%s date_text=%s date_preset=%s date_day=%s date_month=%s "
+                "date_year=%s relative_date_amount=%s relative_date_unit=%s "
+                "date_window_days=%s needs_clarification=%s",
                 request.session_id,
                 spec.city,
                 spec.categories,
                 spec.keywords,
                 spec.date_text,
+                spec.date_preset,
+                spec.date_day,
+                spec.date_month,
+                spec.date_year,
                 spec.relative_date_amount,
                 spec.relative_date_unit,
                 spec.date_window_days,
@@ -149,6 +158,25 @@ class ChatService:
                 return ChatResponse(
                     session_id=request.session_id,
                     assistant_message=assistant_message,
+                    applied_filters={},
+                    results=[],
+                )
+
+            if _has_unresolved_date_text(spec):
+                logger.info(
+                    "Chat request stopped by unresolved date guard session_id=%s date_text=%s",
+                    request.session_id,
+                    spec.date_text,
+                )
+                self.sessions.append_message(
+                    request.session_id,
+                    "assistant",
+                    DATE_CLARIFICATION_RESPONSE,
+                    now,
+                )
+                return ChatResponse(
+                    session_id=request.session_id,
+                    assistant_message=DATE_CLARIFICATION_RESPONSE,
                     applied_filters={},
                     results=[],
                 )
@@ -172,11 +200,30 @@ class ChatService:
                     results=[],
                 )
 
-            normalized = self.retrieval.normalize(
-                spec,
-                previous=context_state,
-                carryover_fields=carryover_fields,
-            )
+            try:
+                normalized = self.retrieval.normalize(
+                    spec,
+                    previous=context_state,
+                    carryover_fields=carryover_fields,
+                )
+            except ValueError as exc:
+                logger.info(
+                    "Chat request stopped by invalid date normalization session_id=%s error=%s",
+                    request.session_id,
+                    exc,
+                )
+                self.sessions.append_message(
+                    request.session_id,
+                    "assistant",
+                    DATE_CLARIFICATION_RESPONSE,
+                    now,
+                )
+                return ChatResponse(
+                    session_id=request.session_id,
+                    assistant_message=DATE_CLARIFICATION_RESPONSE,
+                    applied_filters={},
+                    results=[],
+                )
             normalized.limit = min(normalized.limit, MAX_CHAT_RESULTS)
             logger.info(
                 "Chat query normalized session_id=%s city=%s fts_terms=%s "
@@ -228,3 +275,28 @@ def _enrich_spec_from_request_intent(spec: QuerySpec, request_intent: RequestInt
     if not updates:
         return spec
     return spec.model_copy(update=updates)
+
+
+def _has_unresolved_date_text(spec: QuerySpec) -> bool:
+    if spec.date_text is None:
+        return False
+    normalized_text = " ".join(spec.date_text.casefold().split())
+    if normalized_text in {
+        "today",
+        "tonight",
+        "tomorrow",
+        "this weekend",
+        "weekend",
+        "this week",
+        "next week",
+    }:
+        return False
+    return not any(
+        [
+            spec.date_from,
+            spec.date_to,
+            spec.date_preset,
+            spec.date_day is not None and spec.date_month is not None,
+            spec.relative_date_amount is not None and spec.relative_date_unit is not None,
+        ]
+    )

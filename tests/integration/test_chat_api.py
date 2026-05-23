@@ -53,6 +53,22 @@ class BroadLisbonIntentExtractor(IntentExtractor):
         return QuerySpec(city="Lisbon")
 
 
+class UnresolvedDateIntentExtractor(IntentExtractor):
+    def extract_intent(self, message: str, state: SessionState | None) -> QuerySpec:
+        return QuerySpec(city="Lisbon", keywords=["relaxed"], date_text="30 June")
+
+
+class StructuredDateIntentExtractor(IntentExtractor):
+    def extract_intent(self, message: str, state: SessionState | None) -> QuerySpec:
+        return QuerySpec(
+            city="Lisbon",
+            keywords=["relaxed"],
+            date_text="30 June",
+            date_day=30,
+            date_month=6,
+        )
+
+
 class ContextAwareIntentExtractor(IntentExtractor):
     def extract_intent(self, message: str, state: SessionState | None) -> QuerySpec:
         if message == "first":
@@ -381,6 +397,110 @@ def test_chat_endpoint_rejects_city_only_query_spec_without_event_language(tmp_p
     assert "What kind of plan" in body["assistant_message"]
     assert body["results"] == []
     assert body["applied_filters"] == {}
+
+
+def test_chat_endpoint_clarifies_unresolved_date_text_instead_of_defaulting(tmp_path) -> None:
+    conn = connect(str(tmp_path / "chat_unresolved_date.sqlite"))
+    initialize_database(conn)
+    now = datetime(2026, 5, 23, 12, 0, tzinfo=UTC)
+    event_repo = EventRepository(conn)
+    event_repo.upsert_many(
+        [
+            SourceEvent(
+                source="agendalx",
+                source_event_id="may-relaxed",
+                title="Relaxed May Event",
+                city="Lisbon",
+                start_at=now + timedelta(days=2),
+                status="scheduled",
+            )
+        ],
+        now,
+    )
+    conn.commit()
+    service = ChatService(
+        conn=conn,
+        sessions=ChatSessionRepository(conn),
+        request_intent_classifier=FakeRequestIntentClassifier(),
+        intent_extractor=UnresolvedDateIntentExtractor(),
+        response_renderer=FakeResponseRenderer(),
+        retrieval=RetrievalService(
+            event_repository=event_repo,
+            clock=lambda: now,
+            default_timezone="Europe/Lisbon",
+            default_days=30,
+        ),
+    )
+    app = create_app()
+    app.dependency_overrides[get_chat_service] = lambda: service
+    client = TestClient(app)
+
+    response = client.post(
+        "/chat",
+        json={"session_id": "session-unresolved-date", "message": "For 30 June in Lisbon"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "could not parse it safely" in body["assistant_message"]
+    assert body["results"] == []
+    assert body["applied_filters"] == {}
+
+
+def test_chat_endpoint_uses_structured_absolute_date_as_hard_filter(tmp_path) -> None:
+    conn = connect(str(tmp_path / "chat_structured_date.sqlite"))
+    initialize_database(conn)
+    now = datetime(2026, 5, 23, 12, 0, tzinfo=UTC)
+    event_repo = EventRepository(conn)
+    event_repo.upsert_many(
+        [
+            SourceEvent(
+                source="agendalx",
+                source_event_id="may-relaxed",
+                title="Relaxed May Event",
+                city="Lisbon",
+                start_at=now + timedelta(days=2),
+                status="scheduled",
+            ),
+            SourceEvent(
+                source="agendalx",
+                source_event_id="june-relaxed",
+                title="Relaxed June Event",
+                city="Lisbon",
+                start_at=datetime(2026, 6, 30, 18, 0, tzinfo=UTC),
+                status="scheduled",
+            ),
+        ],
+        now,
+    )
+    conn.commit()
+    service = ChatService(
+        conn=conn,
+        sessions=ChatSessionRepository(conn),
+        request_intent_classifier=FakeRequestIntentClassifier(),
+        intent_extractor=StructuredDateIntentExtractor(),
+        response_renderer=FakeResponseRenderer(),
+        retrieval=RetrievalService(
+            event_repository=event_repo,
+            clock=lambda: now,
+            default_timezone="Europe/Lisbon",
+            default_days=30,
+        ),
+    )
+    app = create_app()
+    app.dependency_overrides[get_chat_service] = lambda: service
+    client = TestClient(app)
+
+    response = client.post(
+        "/chat",
+        json={"session_id": "session-structured-date", "message": "For 30 June in Lisbon"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["results"][0]["event"]["title"] == "Relaxed June Event"
+    assert body["applied_filters"]["hard_filters"]["date_from"].startswith("2026-06-30")
+    assert body["applied_filters"]["hard_filters"]["date_to"].startswith("2026-06-30")
 
 
 def test_chat_endpoint_new_search_does_not_carry_stale_previous_filters(tmp_path) -> None:

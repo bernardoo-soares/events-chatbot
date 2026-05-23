@@ -52,10 +52,24 @@ def merge_query_spec_for_context(
     if "date" in carryover_fields:
         if data["date_text"] is None:
             data["date_text"] = prior.date_text
+        if data["date_preset"] is None:
+            data["date_preset"] = prior.date_preset
+        if data["date_day"] is None:
+            data["date_day"] = prior.date_day
+        if data["date_month"] is None:
+            data["date_month"] = prior.date_month
+        if data["date_year"] is None:
+            data["date_year"] = prior.date_year
         if data["date_from"] is None:
             data["date_from"] = prior.date_from
         if data["date_to"] is None:
             data["date_to"] = prior.date_to
+        if data["relative_date_amount"] is None:
+            data["relative_date_amount"] = prior.relative_date_amount
+        if data["relative_date_unit"] is None:
+            data["relative_date_unit"] = prior.relative_date_unit
+        if data["date_window_days"] is None:
+            data["date_window_days"] = prior.date_window_days
         if data["time_of_day"] is None:
             data["time_of_day"] = prior.time_of_day
     if "budget" in carryover_fields and data["max_price"] is None:

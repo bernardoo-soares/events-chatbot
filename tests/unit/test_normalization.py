@@ -139,6 +139,57 @@ def test_past_only_date_window_falls_back_to_default_upcoming_window() -> None:
     assert query.hard_filters.date_to == datetime(2026, 6, 18, 12, 0, tzinfo=UTC)
 
 
+def test_structured_absolute_date_resolves_missing_year_to_current_future_date() -> None:
+    now = datetime(2026, 5, 23, 13, 53, tzinfo=UTC)
+
+    query = normalize_query(
+        QuerySpec(city="Lisbon", date_text="30 June", date_day=30, date_month=6),
+        previous=None,
+        now=now,
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+    )
+
+    assert query.hard_filters.date_from is not None
+    assert query.hard_filters.date_to is not None
+    assert query.hard_filters.date_from.date().isoformat() == "2026-06-30"
+    assert query.hard_filters.date_from.hour == 0
+    assert query.hard_filters.date_to.date().isoformat() == "2026-06-30"
+    assert query.hard_filters.date_to.hour == 23
+
+
+def test_structured_absolute_date_without_year_rolls_to_next_year_if_past() -> None:
+    now = datetime(2026, 7, 1, 12, 0, tzinfo=UTC)
+
+    query = normalize_query(
+        QuerySpec(city="Lisbon", date_text="30 June", date_day=30, date_month=6),
+        previous=None,
+        now=now,
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+    )
+
+    assert query.hard_filters.date_from is not None
+    assert query.hard_filters.date_from.date().isoformat() == "2027-06-30"
+
+
+def test_date_preset_today_resolves_to_remainder_of_today() -> None:
+    now = datetime(2026, 5, 23, 13, 53, tzinfo=UTC)
+
+    query = normalize_query(
+        QuerySpec(city="Lisbon", date_text="today", date_preset="today"),
+        previous=None,
+        now=now,
+        default_timezone="Europe/Lisbon",
+        default_days=30,
+    )
+
+    assert query.hard_filters.date_from == now
+    assert query.hard_filters.date_to is not None
+    assert query.hard_filters.date_to.date().isoformat() == "2026-05-23"
+    assert query.hard_filters.date_to.hour == 23
+
+
 def test_relative_month_targets_calendar_month_with_small_window() -> None:
     now = datetime(2026, 5, 23, 13, 53, tzinfo=UTC)
 

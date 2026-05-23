@@ -117,6 +117,12 @@ INTENT_INSTRUCTIONS = [
     "Leave categories empty for broad requests like 'events' or 'things to do'.",
     "Only set categories when the user names a specific event type.",
     "Extract explicit city names from the message when present.",
+    "Keep date_text as the original date phrase for traceability.",
+    "For exact calendar dates like '30 June', 'June 30', '30th of June', or '30/06', "
+    "always extract date_day and date_month as integers. Extract date_year only if the "
+    "user explicitly says a year. Do not guess the year.",
+    "For date presets, set date_preset: 'today', 'tonight', 'tomorrow', 'this_weekend', "
+    "'this_week', or 'next_week'.",
     "Do not convert relative date phrases to guessed calendar dates.",
     "For relative dates like 'in one month', 'next month', 'in two weeks', or "
     "'in 10 days', keep date_text as the original phrase and set "
@@ -126,6 +132,9 @@ INTENT_INSTRUCTIONS = [
     "For 'in one month', use relative_date_amount=1 and relative_date_unit='month'.",
     "For 'in two weeks', use relative_date_amount=2 and relative_date_unit='week'.",
     "For 'in 10 days', use relative_date_amount=10 and relative_date_unit='day'.",
+    "Example: 'For 30 June in Lisbon, what is there relaxed to do?' -> "
+    '{"city":"Lisbon","keywords":["relaxed"],"date_text":"30 June",'
+    '"date_day":30,"date_month":6,"date_year":null}',
     "For broad upcoming ranges like 'next 30 days', leave date fields empty.",
     "Set hard_category_only=true only when the user explicitly says only/just/no other categories.",
     "Set needs_clarification=true only when retrieval cannot proceed safely.",

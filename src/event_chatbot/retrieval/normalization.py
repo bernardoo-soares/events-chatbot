@@ -5,7 +5,13 @@ from zoneinfo import ZoneInfo
 
 from event_chatbot.retrieval.fts import build_fts_query
 from event_chatbot.types.chat import SessionState
-from event_chatbot.types.query import CarryoverField, HardFilters, NormalizedQuery, QuerySpec
+from event_chatbot.types.query import (
+    CarryoverField,
+    DatePreset,
+    HardFilters,
+    NormalizedQuery,
+    QuerySpec,
+)
 
 ALLOWED_CATEGORIES = {
     "music",
@@ -43,6 +49,16 @@ CITY_ALIASES = {
     "madrid": "Madrid",
     "madri": "Madrid",
     "paris": "Paris",
+}
+
+KNOWN_DATE_TEXT_PRESETS: dict[str, DatePreset] = {
+    "today": "today",
+    "tonight": "tonight",
+    "tomorrow": "tomorrow",
+    "this weekend": "this_weekend",
+    "weekend": "this_weekend",
+    "this week": "this_week",
+    "next week": "next_week",
 }
 
 
@@ -109,6 +125,14 @@ def _merge_with_previous(
     if "date" in carryover_fields:
         if data["date_text"] is None:
             data["date_text"] = prior.date_text
+        if data["date_preset"] is None:
+            data["date_preset"] = prior.date_preset
+        if data["date_day"] is None:
+            data["date_day"] = prior.date_day
+        if data["date_month"] is None:
+            data["date_month"] = prior.date_month
+        if data["date_year"] is None:
+            data["date_year"] = prior.date_year
         if data["date_from"] is None:
             data["date_from"] = prior.date_from
         if data["date_to"] is None:
@@ -154,27 +178,41 @@ def _normalize_dates(
             return _apply_time_of_day(date_from.date(), spec.time_of_day, timezone)
         return _prevent_past_only_window(date_from, date_to, now, default_days)
 
+    if spec.date_day is not None and spec.date_month is not None:
+        return _normalize_absolute_date(spec, now, timezone)
+
     if spec.relative_date_amount is not None and spec.relative_date_unit is not None:
         return _normalize_relative_date(spec, now, timezone)
 
+    if spec.date_preset is not None:
+        return _normalize_date_preset(spec.date_preset, now, timezone, default_days)
+
     if spec.date_text:
         normalized_text = spec.date_text.strip().casefold()
-        if normalized_text == "tonight":
-            today = now.date()
-            return _at(today, time(18, 0), timezone), _at(today, time(23, 59, 59), timezone)
-        if normalized_text == "tomorrow":
-            tomorrow = now.date() + timedelta(days=1)
-            return _day_bounds(tomorrow, timezone)
-        if normalized_text == "this weekend":
-            days_until_saturday = (5 - now.weekday()) % 7
-            saturday = now.date() + timedelta(days=days_until_saturday)
-            sunday = saturday + timedelta(days=1)
-            return _at(saturday, time(0, 0), timezone), _at(sunday, time(23, 59, 59), timezone)
+        preset = KNOWN_DATE_TEXT_PRESETS.get(normalized_text)
+        if preset is not None:
+            return _normalize_date_preset(preset, now, timezone, default_days)
 
     if spec.time_of_day:
         return _apply_time_of_day(now.date(), spec.time_of_day, timezone)
 
     return now, now + timedelta(days=default_days)
+
+
+def _normalize_absolute_date(
+    spec: QuerySpec,
+    now: datetime,
+    timezone: ZoneInfo,
+) -> tuple[datetime, datetime]:
+    if spec.date_day is None or spec.date_month is None:
+        raise ValueError("Absolute date day and month must both be set")
+    year = spec.date_year or now.year
+    candidate = date(year, spec.date_month, spec.date_day)
+    if spec.date_year is None and candidate < now.date():
+        candidate = date(year + 1, spec.date_month, spec.date_day)
+    if spec.time_of_day:
+        return _apply_time_of_day(candidate, spec.time_of_day, timezone)
+    return _day_bounds(candidate, timezone)
 
 
 def _normalize_relative_date(
@@ -209,6 +247,33 @@ def _add_months(value: date, months: int) -> date:
     month = month_index % 12 + 1
     day = min(value.day, monthrange(year, month)[1])
     return date(year, month, day)
+
+
+def _normalize_date_preset(
+    preset: DatePreset,
+    now: datetime,
+    timezone: ZoneInfo,
+    default_days: int,
+) -> tuple[datetime, datetime]:
+    today = now.date()
+    if preset == "today":
+        return now, _at(today, time(23, 59, 59), timezone)
+    if preset == "tonight":
+        return _at(today, time(18, 0), timezone), _at(today, time(23, 59, 59), timezone)
+    if preset == "tomorrow":
+        return _day_bounds(today + timedelta(days=1), timezone)
+    if preset == "this_weekend":
+        days_until_saturday = (5 - now.weekday()) % 7
+        saturday = today + timedelta(days=days_until_saturday)
+        sunday = saturday + timedelta(days=1)
+        return _at(saturday, time(0, 0), timezone), _at(sunday, time(23, 59, 59), timezone)
+    if preset == "this_week":
+        return now, _at(today + timedelta(days=6 - now.weekday()), time(23, 59, 59), timezone)
+    if preset == "next_week":
+        next_monday = today + timedelta(days=(7 - now.weekday()))
+        next_sunday = next_monday + timedelta(days=6)
+        return _at(next_monday, time(0, 0), timezone), _at(next_sunday, time(23, 59, 59), timezone)
+    return now, now + timedelta(days=default_days)
 
 
 def _prevent_past_only_window(
