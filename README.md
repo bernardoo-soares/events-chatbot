@@ -1,8 +1,18 @@
-# Event Chatbot
+# Grounded Event Chatbot
 
 Grounded local event-discovery chatbot API built with FastAPI, SQLite FTS5, Ticketmaster/AgendaLX ingestion, and Agno-based LLM orchestration.
 
 The LLM does not invent recommendations. Event recommendations come from real rows in the local SQLite database, then deterministic retrieval, semantic ranking, and duplicate suppression decide what is shown.
+
+## Technical Highlights
+
+- FastAPI backend with typed request/response contracts.
+- SQLite event store with FTS5 search and explicit chat session state.
+- Hybrid retrieval with deterministic hard filters plus optional semantic ranking.
+- Ticketmaster and AgendaLX ingestion paths normalized into one event schema.
+- Template-rendered responses grounded in `events.id`.
+- Static web UI backed by structured API results.
+- Tests use fake providers and do not require live OpenAI, Ticketmaster, or AgendaLX calls.
 
 ## Live Demo
 
@@ -154,12 +164,12 @@ Set these Railway environment variables:
 ```env
 APP_ENV=production
 DATABASE_PATH=data/demo_events.db
-OPEN_AI_API_KEY=your-openai-key
+OPENAI_API_KEY=your-openai-key
 OPENAI_MODEL=gpt-4o-mini
 OPENAI_EMBEDDING_MODEL=text-embedding-3-small
 SEMANTIC_RANKING_ENABLED=true
 EMBEDDING_BATCH_SIZE=100
-TICKET_MASTER_CONSUMER_KEY=your-ticketmaster-key
+TICKETMASTER_API_KEY=your-ticketmaster-key
 TICKETMASTER_BASE_URL=https://app.ticketmaster.com/discovery/v2
 AGENDALX_BASE_URL=https://www.agendalx.pt/wp-json/agendalx/v1
 AGENDALX_PER_PAGE=100

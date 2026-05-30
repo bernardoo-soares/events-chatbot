@@ -17,3 +17,10 @@ logs/
 docs/ai_usage.md
 docs/logs/
 resume_*.md
+AGENTS.md
+**/AGENTS.md
+AGENTS.override.md
+**/AGENTS.override.md
+.agent/
+.agents/
+resumes/
