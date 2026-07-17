@@ -6,11 +6,12 @@ from event_chatbot.main import create_app
 
 
 def test_create_app_registers_health_route() -> None:
-    app = create_app()
+    client = TestClient(create_app())
 
-    routes = {route.path for route in app.routes}
+    response = client.get("/health")
 
-    assert "/health" in routes
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
 
 
 def test_web_app_is_served_at_root() -> None:

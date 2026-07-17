@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import httpx
 import pytest
@@ -9,6 +9,13 @@ from event_chatbot.providers.agendalx import (
     normalize_agendalx_event,
 )
 from event_chatbot.types.ingestion import IngestionRequest, SourcePayload
+
+# Dates are computed relative to "today" so the provider's current/future filter
+# accepts (or rejects) them deterministically regardless of when the suite runs.
+_FUTURE_START = (date.today() + timedelta(days=30)).isoformat()
+_FUTURE_END = (date.today() + timedelta(days=60)).isoformat()
+_PAST_START = (date.today() - timedelta(days=400)).isoformat()
+_PAST_END = (date.today() - timedelta(days=390)).isoformat()
 
 
 def test_agendalx_provider_paginates_and_respects_request_size() -> None:
@@ -54,8 +61,8 @@ def test_agendalx_provider_skips_past_events() -> None:
         return httpx.Response(
             200,
             json=[
-                _agendalx_payload(event_id=1, start_date="2024-01-01", last_date="2024-01-02"),
-                _agendalx_payload(event_id=2, start_date="2026-06-01", last_date="2026-06-02"),
+                _agendalx_payload(event_id=1, start_date=_PAST_START, last_date=_PAST_END),
+                _agendalx_payload(event_id=2, start_date=_FUTURE_START, last_date=_FUTURE_END),
             ],
         )
 
@@ -87,7 +94,7 @@ def test_normalize_agendalx_event_extracts_schema_fields() -> None:
     payload = SourcePayload(
         source="agendalx",
         source_event_id="123",
-        payload=_agendalx_payload(event_id=123),
+        payload=_agendalx_payload(event_id=123, start_date="2026-06-01", last_date="2026-06-30"),
     )
 
     event = normalize_agendalx_event(payload, datetime(2026, 5, 20, 12, 0, tzinfo=UTC))
@@ -112,8 +119,8 @@ def test_normalize_agendalx_event_extracts_schema_fields() -> None:
 def _agendalx_payload(
     *,
     event_id: int,
-    start_date: str = "2026-06-01",
-    last_date: str = "2026-06-30",
+    start_date: str = _FUTURE_START,
+    last_date: str = _FUTURE_END,
 ) -> dict:
     return {
         "id": event_id,
