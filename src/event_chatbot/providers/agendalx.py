@@ -26,9 +26,11 @@ class AgendaLXProvider:
         base_url: str,
         per_page: int = 100,
         client: httpx.Client | None = None,
+        max_pages: int = 100,
     ):
         self.base_url = base_url.rstrip("/")
         self.per_page = min(per_page, 100)
+        self.max_pages = max_pages
         self.client = client or httpx.Client(
             timeout=30.0,
             follow_redirects=True,
@@ -45,7 +47,7 @@ class AgendaLXProvider:
         payloads: list[SourcePayload] = []
         page = 1
 
-        while len(payloads) < request.size:
+        while len(payloads) < request.size and page <= self.max_pages:
             page_size = min(self.per_page, request.size - len(payloads))
             response = self.client.get(
                 f"{self.base_url}/events",
@@ -107,6 +109,15 @@ class AgendaLXProvider:
                 skipped_past,
             )
             page += 1
+
+        if page > self.max_pages and len(payloads) < request.size:
+            logger.warning(
+                "AgendaLX pagination hit max_pages=%s before reaching requested size=%s "
+                "(collected=%s); stopping to avoid unbounded requests",
+                self.max_pages,
+                request.size,
+                len(payloads),
+            )
 
         logger.info("AgendaLX fetch completed payload_count=%s", len(payloads))
         return payloads
