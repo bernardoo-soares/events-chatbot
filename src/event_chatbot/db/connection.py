@@ -15,6 +15,14 @@ def connect(database_path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(database_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # Configure for safe concurrent access. Each request uses its own connection,
+    # and a chat turn holds a write transaction across LLM calls, so without these
+    # a second overlapping request would fail immediately with "database is locked".
+    # WAL lets readers and a single writer proceed without blocking each other;
+    # busy_timeout makes a connection wait for a lock instead of erroring at once.
+    # (journal_mode=WAL is a no-op for in-memory databases, which is fine.)
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 5000")
     logger.debug("SQLite connection ready path=%s", database_path)
     return conn
 

@@ -6,6 +6,9 @@ __pycache__/
 *.sqlite-journal
 *.sqlite-shm
 *.sqlite-wal
+*.db-journal
+*.db-shm
+*.db-wal
 !data/demo_events.db
 .pytest_cache/
 .ruff_cache/
