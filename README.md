@@ -1,6 +1,6 @@
 # Grounded Event Chatbot
 
-[![CI](https://github.com/bernardoo-soares/Events-ChatBot/actions/workflows/ci.yml/badge.svg)](https://github.com/bernardoo-soares/Events-ChatBot/actions/workflows/ci.yml)
+[![CI](https://github.com/bernardoo-soares/events-chatbot/actions/workflows/ci.yml/badge.svg)](https://github.com/bernardoo-soares/events-chatbot/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-async-009688.svg)](https://fastapi.tiangolo.com/)
 [![Code style: Ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
