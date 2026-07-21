@@ -8,7 +8,7 @@ from pydantic import BaseModel, ValidationError
 from event_chatbot.core.logging import get_logger
 from event_chatbot.providers.llm import IntentExtractionError
 from event_chatbot.types.chat import SessionState
-from event_chatbot.types.query import NormalizedQuery, QuerySpec, RankedEvent, RequestIntent
+from event_chatbot.types.query import QuerySpec, RequestIntent
 
 logger = get_logger(__name__)
 
@@ -142,28 +142,6 @@ INTENT_INSTRUCTIONS = [
     "Paris stays Paris.",
 ]
 
-RESPONSE_INSTRUCTIONS = [
-    "You are formatting already-retrieved event rows for a user-facing chat UI.",
-    "Use only the supplied event rows.",
-    "Use exactly the supplied event order.",
-    "Do not reorder, add, remove, or replace events.",
-    "Do not add venues, prices, dates, URLs, or event facts that are not present.",
-    "Do not create reasons, summaries, vibes, opinions, or descriptions.",
-    "Do not paraphrase event descriptions.",
-    "Return at most 5 events.",
-    "Use plain text only.",
-    "Do not use Markdown headings, Markdown tables, bold markers, asterisks, or emojis.",
-    "Use one short opening sentence.",
-    "For each event, output exactly this format:",
-    "1. {title}",
-    "   Date: {start_at} or {start_at} - {end_at}",
-    "   Venue: {venue_name or Venue not specified}",
-    "   City: {city}",
-    "If results are empty, say exactly:",
-    "No matching events were found. Try changing the city, date, category, or budget.",
-]
-
-
 class AgnoIntentExtractor:
     def __init__(self, model_id: str, api_key: str):
         self.model_id = model_id
@@ -269,30 +247,3 @@ def _parse_query_spec(content: Any) -> QuerySpec:
     if isinstance(content, BaseModel):
         return QuerySpec.model_validate(content.model_dump())
     return QuerySpec.model_validate(content)
-
-
-class AgnoResponseRenderer:
-    def __init__(self, model_id: str, api_key: str):
-        self.model_id = model_id
-        self.agent = Agent(
-            model=OpenAIResponses(id=model_id, api_key=api_key),
-            instructions=RESPONSE_INSTRUCTIONS,
-        )
-
-    def render_response(self, query: NormalizedQuery, events: list[RankedEvent]) -> str:
-        logger.info(
-            "Starting LLM response rendering model=%s city=%s event_count=%s",
-            self.model_id,
-            query.hard_filters.city,
-            len(events),
-        )
-        payload = {
-            "query": query.model_dump(mode="json"),
-            "events": [event.model_dump(mode="json") for event in events],
-        }
-        response = self.agent.run(
-            json.dumps(payload, ensure_ascii=True),
-        )
-        content = getattr(response, "content", response)
-        logger.info("LLM response rendering completed model=%s", self.model_id)
-        return str(content)
